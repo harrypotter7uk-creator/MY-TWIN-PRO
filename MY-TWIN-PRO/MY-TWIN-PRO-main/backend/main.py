@@ -1,7 +1,7 @@
 """
-MyTwin API v16.0.0 – Living Digital Twin Backend
+MyTwin API v17.0.0 – Living Digital Twin Backend
 ==================================================
-نقطة دخول موحّدة مع جميع التكاملات.
+نقطة دخول موحّدة مع Twin Brain و Awareness Score.
 """
 import logging, sys, os, time, importlib
 from pathlib import Path
@@ -13,7 +13,7 @@ sys.path.insert(0, str(BASE_DIR / 'app'))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(name)-25s | %(levelname)-8s | %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger("mytwin.api")
-logger.info("🚀 MyTwin API v16.0.0 starting...")
+logger.info("🚀 MyTwin API v17.0.0 starting...")
 
 from dotenv import load_dotenv
 load_dotenv(BASE_DIR / '.env')
@@ -44,6 +44,11 @@ async def lifespan(app: FastAPI):
         memory_client = memory_repo
     except ImportError:
         logger.warning("⚠️ Memory Repo not available")
+
+    # Init Twin Brain – العقل الموحد
+    logger.info("🧠 Initializing Twin Brain...")
+    from app.twin_brain.brain_orchestrator import twin_brain
+    await twin_brain.initialize()
 
     # Init Proactive Awareness
     logger.info("🧠 Initializing Proactive Awareness System...")
@@ -80,7 +85,7 @@ async def lifespan(app: FastAPI):
     _register_core_routes(app)
 
     total = len(feature_registry.get_all_plugins())
-    logger.info(f"🌟 MyTwin API v16.0.0 fully started with {total} plugins + all systems")
+    logger.info(f"🌟 MyTwin API v17.0.0 fully started with {total} plugins + Twin Brain + Awareness Score")
 
     yield
 
@@ -121,7 +126,8 @@ def _register_core_routes(app: FastAPI):
         "app.api.routes.image_routes",
         "app.api.routes.sync_routes",
         "app.api.routes.consciousness_routes",
-        "app.api.routes.tts",  # ✅ Edge TTS للصوت الذكوري/الأنثوي
+        "app.api.routes.tts",
+        "app.api.routes.awareness_score_routes",  # ✅ Awareness Score API
     ]
     loaded = 0
     for module_path in core_modules:
@@ -134,8 +140,8 @@ def _register_core_routes(app: FastAPI):
     logger.info(f"   ✅ {loaded}/{len(core_modules)} core routes loaded")
 
 app = FastAPI(
-    title="MyTwin API", version="16.0.0",
-    description="Living Digital Twin – Cognitive Memory & Adaptive Systems",
+    title="MyTwin API", version="17.0.0",
+    description="Living Digital Twin – Twin Brain + Awareness Score",
     docs_url="/docs" if getattr(config, 'DEBUG', False) else None,
     redoc_url="/redoc" if getattr(config, 'DEBUG', False) else None,
     lifespan=lifespan,
@@ -157,7 +163,7 @@ async def log_requests(request: Request, call_next):
 async def root():
     from app.core.feature_registry import feature_registry
     plugins = feature_registry.list_plugins() if feature_registry.is_initialized else []
-    return {"name": "MyTwin API", "version": "16.0.0", "plugins_loaded": len(plugins), "plugins": plugins}
+    return {"name": "MyTwin API", "version": "17.0.0", "plugins_loaded": len(plugins), "plugins": plugins, "twin_brain": True, "awareness_score": True}
 
 @app.get("/health")
 async def health():
@@ -166,7 +172,7 @@ async def health():
     if feature_registry.is_initialized:
         try: plugins_health = await feature_registry.health_check_all()
         except: pass
-    return JSONResponse(content={"api": "healthy", "plugins": plugins_health})
+    return JSONResponse(content={"api": "healthy", "twin_brain": True, "plugins": plugins_health})
 
 if __name__ == "__main__":
     import uvicorn

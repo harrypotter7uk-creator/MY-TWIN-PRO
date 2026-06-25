@@ -12,10 +12,10 @@ import {
   BrainCircuit, Clock, Layers, Sparkles, Target, Heart, Star,
   MessageCircle, ArrowLeft, RefreshCw, Database, Activity,
   Users, Lightbulb, FileText, TrendingUp, Eye,
-  Zap, BookOpen, Smile, Shield,
+  Zap, BookOpen, Smile, Shield, History,
 } from 'lucide-react-native';
 
-type MemoryTab = 'conversations' | 'emotional' | 'reflections' | 'people';
+type MemoryTab = 'conversations' | 'emotional' | 'reflections' | 'people' | 'used';
 
 const T = {
   ar: {
@@ -26,10 +26,14 @@ const T = {
       emotional: 'المشاعر',
       reflections: 'الاستنتاجات',
       people: 'الأشخاص',
+      used: 'استخدمها توأمك',
     },
-    stats: { memories: 'ذكريات', insights: 'استنتاجات', people: 'أشخاص' },
+    stats: { memories: 'ذكريات', insights: 'استنتاجات', people: 'أشخاص', used: 'مستخدمة' },
     empty: 'لا توجد ذكريات بعد. تحدث مع توأمك!',
+    emptyUsed: 'لم يستخدم توأمك أي ذكريات في المحادثات بعد.',
     dominantEmotion: 'المشاعر المسيطرة',
+    recentlyUsed: 'استُخدمت مؤخراً',
+    memoryActive: 'نشطة',
   },
   en: {
     title: 'Memory Gallery',
@@ -39,10 +43,14 @@ const T = {
       emotional: 'Emotions',
       reflections: 'Reflections',
       people: 'People',
+      used: 'Used by Twin',
     },
-    stats: { memories: 'Memories', insights: 'Insights', people: 'People' },
+    stats: { memories: 'Memories', insights: 'Insights', people: 'People', used: 'Used' },
     empty: 'No memories yet. Talk to your Twin!',
+    emptyUsed: 'Your Twin hasn\'t used any memories in conversations yet.',
     dominantEmotion: 'Dominant Emotion',
+    recentlyUsed: 'Recently Used',
+    memoryActive: 'Active',
   },
 };
 
@@ -51,11 +59,12 @@ const TABS: { id: MemoryTab; label_ar: string; label_en: string; icon: any }[] =
   { id: 'emotional', label_ar: 'المشاعر', label_en: 'Emotions', icon: Heart },
   { id: 'reflections', label_ar: 'الاستنتاجات', label_en: 'Reflections', icon: Lightbulb },
   { id: 'people', label_ar: 'الأشخاص', label_en: 'People', icon: Users },
+  { id: 'used', label_ar: 'استخدمها توأمك', label_en: 'Used by Twin', icon: History },
 ];
 
 export default function MemoriesScreen() {
   const insets = useSafeAreaInsets();
-  const { lang, getUserStats } = useTwinStore();
+  const { lang, getUserStats, userId } = useTwinStore();
   const theme = useTheme();
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
@@ -91,24 +100,51 @@ export default function MemoriesScreen() {
       if (activeTab === 'emotional') endpoint = '/api/memories/emotional';
       else if (activeTab === 'reflections') endpoint = '/api/memories/reflections';
       else if (activeTab === 'people') endpoint = '/api/memories/people';
+      else if (activeTab === 'used') endpoint = `/api/memories/used?user_id=${userId}`;
 
       const data = await apiGet(endpoint);
       if (data) {
         if (activeTab === 'emotional') setMemories(data.patterns?.patterns || []);
         else if (activeTab === 'reflections') setMemories(data.insights?.insights || []);
         else if (activeTab === 'people') setMemories(data.people || []);
+        else if (activeTab === 'used') setMemories(data.memories || []);
         else setMemories(data.memories || []);
       }
     } catch (e) { console.error('Memories fetch:', e); }
     finally { setLoading(false); setRefreshing(false); Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(); }
-  }, [activeTab, getUserStats]);
+  }, [activeTab, getUserStats, userId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const memoryCount = stats?.tcma?.total_memories || 0;
   const insightCount = stats?.tcma?.total_insights || 0;
   const peopleCount = stats?.tcma?.people_network_size || 0;
+  const usedCount = stats?.tcma?.used_memories_count || 0;
   const dominantEmotion = stats?.tcma?.dominant_emotion || 'neutral';
+
+  const getMemoryIcon = (item: any) => {
+    if (activeTab === 'used') {
+      return item.memory_type === 'emotional' ? Heart :
+             item.memory_type === 'reflection' ? Lightbulb :
+             item.memory_type === 'identity' ? Smile :
+             item.memory_type === 'relationship' ? Users : BrainCircuit;
+    }
+    return activeTab === 'emotional' ? Heart :
+           activeTab === 'reflections' ? Lightbulb :
+           activeTab === 'people' ? Users : MessageCircle;
+  };
+
+  const getMemoryColor = (item: any) => {
+    if (activeTab === 'used') {
+      return item.memory_type === 'emotional' ? colors.pink :
+             item.memory_type === 'reflection' ? colors.warning :
+             item.memory_type === 'identity' ? colors.blue :
+             item.memory_type === 'relationship' ? colors.success : colors.accent;
+    }
+    return activeTab === 'emotional' ? colors.pink :
+           activeTab === 'reflections' ? colors.warning :
+           activeTab === 'people' ? colors.blue : colors.accent;
+  };
 
   if (loading && !refreshing) {
     return (
@@ -144,6 +180,7 @@ export default function MemoriesScreen() {
                 { icon: Database, val: memoryCount, label: t.stats.memories, color: colors.blue },
                 { icon: Lightbulb, val: insightCount, label: t.stats.insights, color: colors.success },
                 { icon: Users, val: peopleCount, label: t.stats.people, color: colors.pink },
+                { icon: History, val: usedCount, label: t.stats.used, color: colors.gold },
               ].map((s, i) => (
                 <View key={i} style={st.statItem}>
                   <View style={[st.statIcon, { backgroundColor: s.color + '20' }]}>
@@ -165,63 +202,82 @@ export default function MemoriesScreen() {
           </View>
 
           {/* ألسنة التبويب */}
-          <View style={[st.tabsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {TABS.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[st.tab, isActive && { backgroundColor: colors.accent }]}
-                  onPress={() => { setActiveTab(tab.id); setMemories([]); }}
-                >
-                  <Icon size={16} stroke={isActive ? '#FFF' : colors.subtext} />
-                  <Text style={[st.tabText, { color: isActive ? '#FFF' : colors.subtext }]}>
-                    {isAr ? tab.label_ar : tab.label_en}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.tabsScroll}>
+            <View style={[st.tabsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {TABS.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <TouchableOpacity
+                    key={tab.id}
+                    style={[st.tab, isActive && { backgroundColor: colors.accent }]}
+                    onPress={() => { setActiveTab(tab.id); setMemories([]); }}
+                  >
+                    <Icon size={16} stroke={isActive ? '#FFF' : colors.subtext} />
+                    <Text style={[st.tabText, { color: isActive ? '#FFF' : colors.subtext }]}>
+                      {isAr ? tab.label_ar : tab.label_en}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
 
           {/* قائمة الذكريات */}
           {memories.length === 0 ? (
             <View style={st.emptyContainer}>
               <BrainCircuit size={48} stroke={colors.subtext} />
-              <Text style={[st.emptyText, { color: colors.subtext }]}>{t.empty}</Text>
+              <Text style={[st.emptyText, { color: colors.subtext }]}>
+                {activeTab === 'used' ? t.emptyUsed : t.empty}
+              </Text>
             </View>
           ) : (
-            memories.map((item, i) => (
-              <View key={item.id || i} style={[st.memoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[st.memoryHeader, isAr && { flexDirection: 'row-reverse' }]}>
-                  <View style={[st.memoryIcon, { backgroundColor: colors.accentLight }]}>
-                    {activeTab === 'emotional' ? (
-                      <Heart size={16} stroke={colors.pink} />
-                    ) : activeTab === 'reflections' ? (
-                      <Lightbulb size={16} stroke={colors.warning} />
-                    ) : activeTab === 'people' ? (
-                      <Users size={16} stroke={colors.blue} />
-                    ) : (
-                      <MessageCircle size={16} stroke={colors.accent} />
+            memories.map((item, i) => {
+              const MemoryIcon = getMemoryIcon(item);
+              const memoryColor = getMemoryColor(item);
+              const isRecentlyUsed = item.used_at && (Date.now() - new Date(item.used_at).getTime() < 3600000);
+              
+              return (
+                <View key={item.id || i} style={[st.memoryCard, { backgroundColor: colors.card, borderColor: isRecentlyUsed ? memoryColor : colors.border }]}>
+                  {isRecentlyUsed && (
+                    <View style={[st.activeBadge, { backgroundColor: memoryColor + '20' }]}>
+                      <Zap size={10} stroke={memoryColor} />
+                      <Text style={[st.activeBadgeText, { color: memoryColor }]}>{t.memoryActive}</Text>
+                    </View>
+                  )}
+                  <View style={[st.memoryHeader, isAr && { flexDirection: 'row-reverse' }]}>
+                    <View style={[st.memoryIcon, { backgroundColor: memoryColor + '20' }]}>
+                      <MemoryIcon size={16} stroke={memoryColor} />
+                    </View>
+                    <Text style={[st.memoryContent, { color: colors.text, textAlign: isAr ? 'right' : 'left' }]}>
+                      {activeTab === 'people'
+                        ? `${item.name || ''} (${item.relationship || item.relationship_type || ''})`
+                        : activeTab === 'emotional'
+                        ? item
+                        : activeTab === 'used'
+                        ? item.context_used || item.content || ''
+                        : item.content || item.text || item.insight_text || item.title || ''}
+                    </Text>
+                  </View>
+                  <View style={[st.memoryFooter, isAr && { flexDirection: 'row-reverse' }]}>
+                    {item.created_at && (
+                      <Text style={[st.memoryDate, { color: colors.subtext }]}>
+                        {new Date(item.created_at).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                        })}
+                      </Text>
+                    )}
+                    {activeTab === 'used' && item.memory_type && (
+                      <View style={[st.memoryTypeBadge, { backgroundColor: memoryColor + '15' }]}>
+                        <Text style={[st.memoryTypeText, { color: memoryColor }]}>
+                          {item.memory_type}
+                        </Text>
+                      </View>
                     )}
                   </View>
-                  <Text style={[st.memoryContent, { color: colors.text, textAlign: isAr ? 'right' : 'left' }]}>
-                    {activeTab === 'people'
-                      ? `${item.name || ''} (${item.relationship || item.relationship_type || ''})`
-                      : activeTab === 'emotional'
-                      ? item
-                      : item.content || item.text || item.insight_text || item.title || ''}
-                  </Text>
                 </View>
-                {item.created_at && (
-                  <Text style={[st.memoryDate, { color: colors.subtext }]}>
-                    {new Date(item.created_at).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
-                      year: 'numeric', month: 'short', day: 'numeric',
-                    })}
-                  </Text>
-                )}
-              </View>
-            ))
+              );
+            })
           )}
         </Animated.View>
       </ScrollView>
@@ -237,21 +293,27 @@ const st = StyleSheet.create({
   content: { padding: 16, paddingBottom: 50 },
   loadingText: { fontSize: 15 },
   statsCard: { borderRadius: 20, borderWidth: 1, padding: 18, marginBottom: 16 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 },
-  statItem: { alignItems: 'center', gap: 6 },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12, flexWrap: 'wrap', gap: 8 },
+  statItem: { alignItems: 'center', gap: 6, minWidth: 60 },
   statIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   statValue: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 11, fontWeight: '600' },
+  statLabel: { fontSize: 10, fontWeight: '600' },
   emotionBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1 },
   emotionBadgeText: { fontSize: 13, fontWeight: '600' },
-  tabsRow: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 4, marginBottom: 16 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
+  tabsScroll: { marginBottom: 16 },
+  tabsRow: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 4 },
+  tab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12 },
   tabText: { fontSize: 13, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { fontSize: 14, marginTop: 10, textAlign: 'center' },
-  memoryCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10 },
+  memoryCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10, position: 'relative' },
+  activeBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginBottom: 8 },
+  activeBadgeText: { fontSize: 10, fontWeight: '700' },
   memoryHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 6 },
   memoryIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   memoryContent: { fontSize: 14, fontWeight: '500', flex: 1, lineHeight: 22 },
-  memoryDate: { fontSize: 11, textAlign: 'right', marginTop: 4 },
+  memoryFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  memoryDate: { fontSize: 11 },
+  memoryTypeBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  memoryTypeText: { fontSize: 10, fontWeight: '600' },
 });

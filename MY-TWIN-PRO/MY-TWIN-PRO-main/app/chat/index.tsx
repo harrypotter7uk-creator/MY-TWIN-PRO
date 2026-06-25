@@ -13,7 +13,7 @@ import {
   Menu, Volume2, VolumeX, Mic, Heart, BrainCircuit,
 } from 'lucide-react-native';
 import { COLORS, ThinkingBar, WelcomeState, EnergyModal } from './ChatComponents';
-import { UserBubble, TwinBubble, ToolChip } from '../../components/ChatBubbles';
+import { UserBubble, TwinBubble, ToolChip } from './ChatBubbles';
 import { ChatInput } from './ChatInput';
 
 const APP_ICON = require('../../assets/icon.png');
@@ -272,16 +272,13 @@ const styles = StyleSheet.create({
   miniText: { fontSize: 11, fontWeight: '600' },
   iconBtn: { padding: 6, borderRadius: 10 },
   recordingBtn: { backgroundColor: '#FF3B3015' },
-  // شريط الطاقة الكوني
   energyBarContainer: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
   energyBarBg: { height: 4, borderRadius: 2, overflow: 'hidden' },
   energyBarFill: { height: '100%', borderRadius: 2 },
-  // شريط الترابط
   bondBarContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 4 },
   bondBarBg: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
   bondBarFill: { height: '100%', borderRadius: 2 },
   bondText: { fontSize: 10, fontWeight: '700' },
-  // تحذير
   limitWarning: {
     padding: 10, marginHorizontal: 16, borderRadius: 12, borderWidth: 1,
     backgroundColor: '#F59E0B20', borderColor: '#F59E0B', marginBottom: 8,

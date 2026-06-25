@@ -8,12 +8,14 @@ import { useTwinStore } from '../store/useTwinStore';
 import { useTheme } from '../utils/theme';
 import { router } from 'expo-router';
 import { removeToken } from '../lib/auth';
+import { apiGet } from '../lib/httpClient';
 import {
   Home, MessageCircle, Heart, Brain, Smile, User, Palette, Diamond,
   Settings, LogOut, Gift, Sparkles, BatteryFull, BatteryMedium,
   BatteryLow, ChevronRight, Zap, Crown, Star, X,
   GraduationCap, Code2, TrendingUp, Image as ImageIcon, Moon,
   PenLine, Home as HomeIcon, CheckSquare, FolderOpen,
+  Eye, Bell, TrendingUp as TrendingUpIcon,
 } from 'lucide-react-native';
 
 let Haptics: any = null;
@@ -68,6 +70,7 @@ const AvatarRing = memo(({ accent, accentSoft }: { accent: string; accentSoft: s
     </View>
   );
 });
+
 const av = StyleSheet.create({
   outer: { width: 76, height: 76, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
   pulseRing: { position: 'absolute', width: 76, height: 76, borderRadius: 38, borderWidth: 2 },
@@ -86,15 +89,14 @@ const AnimBar = memo(({ value, color, trackColor }: { value: number; color: stri
     </View>
   );
 });
+
 const bs = StyleSheet.create({ track: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden' }, fill: { height: '100%', borderRadius: 3 } });
 
 export default function SideMenu({ onClose }: { onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { lang, twinName, bondLevel, tier, clearHistory, getEnergyPercent, logout: storeLogout } = useTwinStore((s) => ({
-    lang: s.lang, twinName: s.twinName, bondLevel: s.bondLevel,
-    tier: s.tier, clearHistory: s.clearHistory, getEnergyPercent: s.getEnergyPercent, logout: s.logout,
-  }));
+  const store = useTwinStore();
+  const { lang, twinName, bondLevel, tier, journeyPhase, clearHistory, getEnergyPercent, logout: storeLogout, userId } = store;
 
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
@@ -104,6 +106,29 @@ export default function SideMenu({ onClose }: { onClose: () => void }) {
   const bond = Math.max(0, Math.min(100, bondLevel));
   const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG.free;
   const isFree = FREE_TIERS.includes(tier);
+
+  const [awarenessScore, setAwarenessScore] = useState<any>(null);
+  const [notifFreq, setNotifFreq] = useState<any>(null);
+
+  useEffect(() => {
+    if (userId) {
+      Promise.all([
+        apiGet(`/api/awareness-score/${userId}`).catch(() => null),
+        apiGet(`/api/awareness-score/frequency?user_id=${userId}&tier=${tier}`).catch(() => null),
+      ]).then(([score, freq]) => {
+        if (score) setAwarenessScore(score);
+        if (freq) setNotifFreq(freq);
+      });
+    }
+  }, [userId, tier]);
+
+  const phaseLabels: Record<string, string> = {
+    introduction: t('تعارف', 'Introduction'),
+    trust_building: t('بناء ثقة', 'Building Trust'),
+    deepening: t('تعمق', 'Deepening'),
+    growth: t('نمو', 'Growth'),
+    mature: t('نضج', 'Mature'),
+  };
 
   const c = useMemo(() => ({
     bg: isDark ? '#141416' : '#FFFFFF', headerBg: isDark ? '#1C1C1E' : '#F9F6FF',
@@ -171,6 +196,25 @@ export default function SideMenu({ onClose }: { onClose: () => void }) {
             <tierCfg.icon size={12} stroke={tierCfg.color} />
             <Text style={[styles.tierText, { color: tierCfg.color }]}>{isAr ? tierCfg.ar : tierCfg.en}</Text>
           </View>
+
+          {awarenessScore && (
+            <View style={[styles.awarenessMini, { backgroundColor: c.accentSoft, borderColor: c.accent + '30' }]}>
+              <Eye size={14} stroke={c.accent} />
+              <Text style={[styles.awarenessMiniText, { color: c.accent }]}>
+                {t('فهم التوأم', 'Twin Understanding')}: {awarenessScore.score}%
+              </Text>
+            </View>
+          )}
+
+          {notifFreq && (
+            <View style={[styles.notifMini, { borderColor: c.border }]}>
+              <Bell size={12} stroke={c.subtext} />
+              <Text style={[styles.notifMiniText, { color: c.subtext }]}>
+                {t('إشعارات متبقية', 'Notifs left')}: {notifFreq.remaining}/{notifFreq.daily_limit}
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.statsRow, { borderColor: c.border }]}>
             <View style={styles.statItem}>
               <View style={[styles.statLabelRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
@@ -190,6 +234,15 @@ export default function SideMenu({ onClose }: { onClose: () => void }) {
               <AnimBar value={energy} color={c.energyColor} trackColor={c.energyTrack} />
             </View>
           </View>
+
+          {journeyPhase && (
+            <View style={[styles.journeyMini, { borderColor: c.border }]}>
+              <TrendingUpIcon size={12} stroke={c.subtext} />
+              <Text style={[styles.journeyMiniText, { color: c.subtext }]}>
+                {t('المرحلة', 'Phase')}: {phaseLabels[journeyPhase] || journeyPhase}
+              </Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity style={[styles.chatBtn, { backgroundColor: c.accentSoft, borderColor: c.accent + '40' }]} onPress={() => navigate('/chat')}>
@@ -289,8 +342,14 @@ const styles = StyleSheet.create({
   appName: { fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
   profileCard: { borderRadius: 24, borderWidth: 1, padding: 20, marginBottom: 14, alignItems: 'center' },
   twinName: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4, marginBottom: 8 },
-  tierBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
+  tierBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginBottom: 12 },
   tierText: { fontSize: 12, fontWeight: '700' },
+  awarenessMini: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
+  awarenessMiniText: { fontSize: 12, fontWeight: '600' },
+  notifMini: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  notifMiniText: { fontSize: 11, fontWeight: '500' },
+  journeyMini: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  journeyMiniText: { fontSize: 11, fontWeight: '500' },
   statsRow: { flexDirection: 'row', alignItems: 'stretch', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 12, width: '100%' },
   statItem: { flex: 1, gap: 6 },
   statDivider: { width: 1, borderRadius: 1 },

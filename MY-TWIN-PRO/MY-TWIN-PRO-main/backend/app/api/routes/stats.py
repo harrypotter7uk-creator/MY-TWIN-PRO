@@ -1,9 +1,10 @@
 """
-Stats Routes v3.0 – لوحة إحصائيات المستخدم (متكاملة مع TCMA)
-================================================================
+Stats Routes v4.0 – لوحة إحصائيات المستخدم (متكاملة مع Awareness Score)
+===========================================================================
 - إحصائيات الباقة والاستخدام اليومي
 - إحصائيات TCMA (الذاكرة، المشاعر، الاستنتاجات)
 - إحصائيات الميزات (الدراسة، الأعمال، البرمجة)
+- ✅ جديد: Awareness Score + حدود الإشعارات
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +21,7 @@ async def get_user_dashboard(
     user_id: str = Depends(get_current_user_id),
     tier: str = Depends(get_user_tier),
 ):
-    """لوحة معلومات المستخدم الكاملة"""
+    """لوحة معلومات المستخدم الكاملة – مع Awareness Score"""
     db = get_db()
     today = date.today().isoformat()
     
@@ -29,6 +30,8 @@ async def get_user_dashboard(
         "usage": {},
         "tcma": {},
         "features": {},
+        "awareness": {},
+        "notifications": {},
     }
 
     # 1. الباقة والاستخدام
@@ -40,6 +43,8 @@ async def get_user_dashboard(
                 "tier": p.get("tier", "free"),
                 "twin_energy": p.get("twin_energy", 100),
                 "twin_name": p.get("twin_name", "توأمك"),
+                "bond_level": p.get("bond_level", 0),
+                "journey_phase": p.get("journey_phase", "introduction"),
             }
     except: pass
 
@@ -49,13 +54,11 @@ async def get_user_dashboard(
 
     # 2. إحصائيات TCMA (الذاكرة)
     try:
-        # عدد الذكريات
         from app.infrastructure.database.memory_repo import count_memories
         stats["tcma"]["total_memories"] = await count_memories(user_id)
     except: pass
 
     try:
-        # المشاعر المسيطرة
         from app.memory.emotional.emotional_memory import get_emotional_patterns
         patterns = await get_emotional_patterns(user_id, days=7)
         stats["tcma"]["dominant_emotion"] = patterns.get("dominant_emotion", "neutral")
@@ -63,14 +66,12 @@ async def get_user_dashboard(
     except: pass
 
     try:
-        # عدد الاستنتاجات
         from app.memory.reflection.reflection_engine import get_user_insights
         insights = await get_user_insights(user_id, min_confidence=0.5)
         stats["tcma"]["total_insights"] = len(insights.get("insights", []))
     except: pass
 
     try:
-        # شبكة العلاقات
         from app.memory.relationship.person_node import get_person_network
         network = await get_person_network(user_id, min_importance=20)
         stats["tcma"]["people_network_size"] = len(network)
@@ -78,19 +79,16 @@ async def get_user_dashboard(
 
     # 3. إحصائيات الميزات
     try:
-        # الدراسة
         knowledge = db.table("user_knowledge_state").select("concept_name,mastery_level").eq("user_id", user_id).order("updated_at", desc=True).limit(5).execute()
         stats["features"]["study"] = {"concepts_learned": len(knowledge.data or []), "top_concepts": [k["concept_name"] for k in (knowledge.data or [])[:3]]}
     except: pass
 
     try:
-        # الأعمال
         projects = db.table("business_projects").select("name,stage").eq("user_id", user_id).execute()
         stats["features"]["business"] = {"active_projects": len(projects.data or [])}
     except: pass
 
     try:
-        # الأهداف
         goals = db.table("goals").select("status").eq("user_id", user_id).execute()
         if goals.data:
             stats["features"]["goals"] = {
@@ -100,7 +98,6 @@ async def get_user_dashboard(
     except: pass
 
     try:
-        # المهام
         tasks = db.table("tasks").select("status").eq("user_id", user_id).execute()
         if tasks.data:
             stats["features"]["tasks"] = {
@@ -108,6 +105,28 @@ async def get_user_dashboard(
                 "completed": sum(1 for t in tasks.data if t.get("status") == "completed"),
             }
     except: pass
+
+    # ✅ 4. جديد: Awareness Score
+    try:
+        from app.twin_state.awareness_score import get_awareness_level, get_notification_frequency
+        awareness = await get_awareness_level(user_id)
+        stats["awareness"] = {
+            "score": awareness.get("score", 0),
+            "level": awareness.get("level", "خامل"),
+            "updated_at": awareness.get("updated_at"),
+        }
+        notif_freq = await get_notification_frequency(user_id, tier)
+        stats["notifications"] = {
+            "daily_limit": notif_freq.get("daily_limit", 2),
+            "sent_today": notif_freq.get("sent_today", 0),
+            "remaining": notif_freq.get("remaining", 2),
+            "can_send": notif_freq.get("can_send", True),
+            "tier": tier,
+        }
+    except Exception as e:
+        logger.warning(f"Awareness stats failed: {e}")
+        stats["awareness"] = {"score": 0, "level": "خامل"}
+        stats["notifications"] = {"daily_limit": 2, "sent_today": 0, "remaining": 2, "can_send": True, "tier": tier}
 
     return stats
 
@@ -120,4 +139,4 @@ async def get_daily_usage(
     from app.domain.services.limits_service import get_usage_summary
     return get_usage_summary(user_id, tier)
 
-logger.info("✅ Stats Routes v3.0 initialized")
+logger.info("✅ Stats Routes v4.0 initialized with Awareness Score")
