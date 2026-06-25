@@ -14,21 +14,15 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Audio } from 'expo-av';
 import {
   Mail, Lock, Eye, EyeOff, LogIn, UserPlus, ArrowLeft,
-  Sparkles, Chrome, Fingerprint, Shield,
+  Sparkles, Chrome, Fingerprint, Shield, Globe,
 } from 'lucide-react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const APP_LOGO = require('../assets/icon.png');
-const { width } = Dimensions.get('window');
-
-// ثوابت Google – استبدلها بقيمك الحقيقية عند النشر
-const GOOGLE_ANDROID_ID = '';
-const GOOGLE_IOS_ID = '';
-const GOOGLE_WEB_ID = '';
 
 export default function Login() {
-  const { setAuth, clearHistory, lang } = useTwinStore();
+  const { setAuth, clearHistory, lang, setLang } = useTwinStore();
   const isDark = useTheme().isDark;
   const isAr = lang === 'ar';
 
@@ -46,13 +40,12 @@ export default function Login() {
   const particle2 = useRef(new Animated.Value(0)).current;
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: GOOGLE_ANDROID_ID,
-    iosClientId: GOOGLE_IOS_ID,
-    webClientId: GOOGLE_WEB_ID || GOOGLE_ANDROID_ID,
+    androidClientId: '',
+    iosClientId: '',
+    webClientId: '',
   });
 
   useEffect(() => {
-    // تأثيرات الدخول
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
@@ -71,7 +64,6 @@ export default function Login() {
       ),
     ]).start();
 
-    // تشغيل صوت البداية الكوني
     try {
       Audio.Sound.createAsync(require('../assets/chime_start.mp3')).then(({ sound }) => {
         sound.playAsync();
@@ -101,6 +93,10 @@ export default function Login() {
     } catch {}
   };
 
+  const toggleLanguage = () => {
+    setLang(lang === 'ar' ? 'en' : 'ar');
+  };
+
   useEffect(() => {
     if (response?.type === 'success' && response.authentication?.accessToken) {
       handleGoogleLogin(response.authentication.accessToken);
@@ -114,7 +110,7 @@ export default function Login() {
     try {
       const data = await apiPost('/api/auth/google', { access_token: accessToken, lang: isAr ? 'ar' : 'en' });
       if (data?.token && data?.user_id) {
-        await onLoginSuccess(data);
+        await onLoginSuccess(data, data?.onboarded ? '/twin-mind' : '/onboarding');
       } else {
         throw new Error('Invalid response');
       }
@@ -138,7 +134,7 @@ export default function Login() {
     try {
       const data = await apiPost('/api/auth/login', { email: email.trim(), password });
       if (data?.token && data?.user_id) {
-        await onLoginSuccess(data);
+        await onLoginSuccess(data, data?.onboarded ? '/twin-mind' : '/onboarding');
       } else {
         Alert.alert(isAr ? 'خطأ' : 'Error', isAr ? 'بيانات دخول غير صحيحة' : 'Invalid credentials');
       }
@@ -171,7 +167,8 @@ export default function Login() {
         twin_name: isAr ? 'توأمك' : 'MyTwin',
       });
       if (data?.token && data?.user_id) {
-        await onLoginSuccess(data);
+        // تسجيل جديد دائماً يذهب إلى Onboarding
+        await onLoginSuccess(data, '/onboarding');
       } else {
         Alert.alert(isAr ? 'تم ✅' : 'Done ✅', isAr ? 'تم إنشاء الحساب. سجل دخول الآن.' : 'Account created. Sign in now.');
       }
@@ -200,10 +197,9 @@ export default function Login() {
     } catch {}
   };
 
-  const onLoginSuccess = async (data: any) => {
+  const onLoginSuccess = async (data: any, redirectTo: string = '/twin-mind') => {
     setAuth(data.user_id);
     clearHistory();
-
     try {
       const OneSignal = require('react-native-onesignal');
       const deviceState = await OneSignal.getDeviceState();
@@ -215,12 +211,10 @@ export default function Login() {
         });
       }
     } catch {}
-
     try {
       await apiPost('/api/awareness/digital-fingerprint', { user_id: data.user_id });
     } catch {}
-
-    router.replace('/twin-mind');
+    router.replace(redirectTo);
   };
 
   const colors = {
@@ -239,6 +233,14 @@ export default function Login() {
 
   return (
     <View style={[st.root, { backgroundColor: colors.bg }]}>
+      {/* زر اللغة في الأعلى */}
+      <TouchableOpacity style={st.langBtn} onPress={toggleLanguage}>
+        <Globe size={22} stroke={colors.accent} />
+        <Text style={[st.langText, { color: colors.accent }]}>
+          {isAr ? 'English' : 'العربية'}
+        </Text>
+      </TouchableOpacity>
+
       <Animated.View style={[st.particle, {
         top: '20%', left: '10%',
         opacity: particle1.interpolate({ inputRange: [0,1], outputRange: [0.1, 0.3] }),
@@ -254,50 +256,36 @@ export default function Login() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={st.container}>
-          <TouchableOpacity style={st.backBtn} onPress={() => router.replace('/splash')}>
-            <ArrowLeft size={24} stroke={colors.text} />
-          </TouchableOpacity>
-
           <Animated.View style={[st.logoContainer, { transform: [{ scale: logoScale }] }]}>
             <Image source={APP_LOGO} style={st.logo} resizeMode="contain" />
-            <View style={[st.logoGlow, { backgroundColor: colors.glow + '30' }]} />
           </Animated.View>
 
-          <Animated.Text style={[st.heading, { color: colors.text, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <Animated.Text style={[st.heading, { color: colors.text, opacity: fadeAnim }]}>
             MyTwin
           </Animated.Text>
           <Animated.Text style={[st.sub, { color: colors.subtext, opacity: fadeAnim }]}>
             {isAr ? 'تؤامك الرقمي... وعي حقيقي، دائمًا معك' : 'Your Digital Twin... Real awareness, always with you'}
           </Animated.Text>
 
-          {/* Google */}
           <Animated.View style={{ opacity: fadeAnim, width: '100%' }}>
             <TouchableOpacity
               style={[st.googleBtn, { backgroundColor: colors.googleBg, borderColor: colors.border }]}
               onPress={() => promptAsync()}
               disabled={!request || loading}
             >
-              {loading ? (
-                <ActivityIndicator color={colors.googleText} />
-              ) : (
-                <>
-                  <Chrome size={22} stroke="#4285F4" />
-                  <Text style={[st.googleBtnText, { color: colors.googleText }]}>
-                    {isAr ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}
-                  </Text>
-                </>
-              )}
+              <Chrome size={22} stroke="#4285F4" />
+              <Text style={[st.googleBtnText, { color: colors.googleText }]}>
+                {isAr ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
 
-          {/* فاصل */}
           <Animated.View style={[st.divider, { opacity: fadeAnim }]}>
             <View style={[st.dividerLine, { backgroundColor: colors.border }]} />
             <Text style={[st.dividerText, { color: colors.subtext }]}>{isAr ? 'أو' : 'or'}</Text>
             <View style={[st.dividerLine, { backgroundColor: colors.border }]} />
           </Animated.View>
 
-          {/* بريد */}
           <Animated.View style={[st.inputWrap, { backgroundColor: colors.inputBg, borderColor: colors.border, opacity: fadeAnim }]}>
             <Mail size={20} stroke={colors.subtext} />
             <TextInput
@@ -311,7 +299,6 @@ export default function Login() {
             />
           </Animated.View>
 
-          {/* كلمة مرور */}
           <Animated.View style={[st.inputWrap, { backgroundColor: colors.inputBg, borderColor: colors.border, opacity: fadeAnim }]}>
             <Lock size={20} stroke={colors.subtext} />
             <TextInput
@@ -327,7 +314,6 @@ export default function Login() {
             </TouchableOpacity>
           </Animated.View>
 
-          {/* دخول */}
           <Animated.View style={{ opacity: fadeAnim, width: '100%' }}>
             <TouchableOpacity style={[st.primaryBtn, { backgroundColor: colors.accent }]} onPress={handleLogin} disabled={loading}>
               {loading ? <ActivityIndicator color="#FFF" /> : (
@@ -339,7 +325,6 @@ export default function Login() {
             </TouchableOpacity>
           </Animated.View>
 
-          {/* تسجيل جديد */}
           <Animated.View style={{ opacity: fadeAnim, width: '100%' }}>
             <TouchableOpacity style={[st.outlineBtn, { borderColor: colors.accent }]} onPress={handleSignup} disabled={loading}>
               <UserPlus size={20} stroke={colors.accent} />
@@ -347,7 +332,6 @@ export default function Login() {
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Biometric */}
           {isBiometricSupported && (
             <Animated.View style={{ opacity: fadeAnim }}>
               <TouchableOpacity style={[st.biometricBtn, { borderColor: colors.border }]} onPress={handleBiometricLogin}>
@@ -359,7 +343,6 @@ export default function Login() {
             </Animated.View>
           )}
 
-          {/* أمان */}
           <Animated.View style={[st.securityBadge, { opacity: fadeAnim }]}>
             <Shield size={14} stroke={colors.subtext} />
             <Text style={[st.securityText, { color: colors.subtext }]}>
@@ -375,11 +358,22 @@ export default function Login() {
 const st = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, padding: 24, justifyContent: 'center', alignItems: 'center' },
-  backBtn: { position: 'absolute', top: 50, left: 24, zIndex: 10, padding: 6 },
-  logoContainer: { alignItems: 'center', marginBottom: 16, position: 'relative' },
-  logo: { width: 90, height: 90, borderRadius: 22, zIndex: 2 },
-  logoGlow: { position: 'absolute', width: 110, height: 110, borderRadius: 55, top: -10, left: -10, opacity: 0.5 },
-  heading: { fontSize: 36, fontWeight: '800', textAlign: 'center', marginBottom: 8, letterSpacing: -0.5 },
+  langBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#7C3AED20',
+    zIndex: 10,
+  },
+  langText: { fontWeight: '600', fontSize: 14 },
+  logoContainer: { alignItems: 'center', marginBottom: 16 },
+  logo: { width: 90, height: 90, borderRadius: 22 },
+  heading: { fontSize: 36, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   sub: { fontSize: 14, textAlign: 'center', marginBottom: 28, lineHeight: 22, paddingHorizontal: 20 },
   googleBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
