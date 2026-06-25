@@ -1,0 +1,55 @@
+# MyTwin Backend v15.0.0 – Production Requirements
+# =====================================================
+# محدثة لـ SDK 53 وجميع الميزات الجديدة
+
+# الأساسيات
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# الذكاء الاصطناعي
+google-genai>=0.1.0
+openai>=1.55.0
+groq>=0.13.0
+
+# قاعدة البيانات والتخزين
+supabase>=2.6.0
+pgvector>=0.2.0
+cachetools>=5.3.0
+
+# الأمان والمصادقة
+PyJWT>=2.8.0
+cryptography>=41.0.7
+
+# الصوت
+edge-tts>=6.1.0
+vosk>=0.3.45
+
+# الشبكة والاتصالات
+httpx>=0.27.0
+
+# المراقبة والأداء
+slowapi>=0.1.9
+sentry-sdk[fastapi]>=2.0.0
+tenacity>=8.2.0
+psutil>=5.9.6
+
+# معالجة البيانات
+numpy>=1.24.0
+aiofiles>=23.0.0
+python-dateutil>=2.8.2
+langdetect>=1.0.9
+
+# تدريب النموذج الخاص (اختياري)
+torch>=2.0.0
+transformers>=4.40.0
+peft>=0.10.0
+datasets>=2.18.0
+trl>=0.8.0
+bitsandbytes>=0.42.0
+accelerate>=0.28.0
+sentence-transformers>=2.6.0
+
+# Redis (اختياري للإنتاج)
+redis>=5.0.0
