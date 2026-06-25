@@ -2,7 +2,7 @@ import { useTheme } from '../utils/theme';
 import * as Sentry from '@sentry/react-native';
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Animated, Modal, useWindowDimensions, View, Text, TouchableOpacity } from "react-native";
 import { useTwinStore } from "../store/useTwinStore";
 import { initAnalytics } from "../lib/analytics";
@@ -13,15 +13,14 @@ import { registerForPushNotifications, setupNotificationHandlers, setupAndroidCh
 import { pluginRegistry } from "../lib/pluginClient";
 import { apiGet } from "../lib/httpClient";
 import PresenceBubble from '../components/PresenceBubble';
-import { Sparkles, Heart, Zap } from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 
-// تحميل الخطوط بشكل آمن مع تخطي فوري في حال الفشل
 let useFonts: any;
 try {
   const googleFonts = require('@expo-google-fonts/orbitron');
   useFonts = googleFonts.useFonts;
 } catch (e) {
-  useFonts = () => [true]; // تخطي التحميل وعرض التطبيق بدون خطوط مخصصة
+  useFonts = () => [true];
 }
 
 Sentry.init({
@@ -42,9 +41,20 @@ const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean 
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', pointerEvents: 'none' }}>
       {Array.from({ length: 12 }).map((_, i) => {
         const anim = useRef(new Animated.Value(0)).current;
-        useEffect(() => { Animated.loop(Animated.sequence([Animated.timing(anim, { toValue: 1, duration: 3000 + Math.random() * 2000, useNativeDriver: true }), Animated.timing(anim, { toValue: 0, duration: 3000 + Math.random() * 2000, useNativeDriver: true })])).start(); }, []);
+        useEffect(() => {
+          Animated.loop(Animated.sequence([
+            Animated.timing(anim, { toValue: 1, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
+            Animated.timing(anim, { toValue: 0, duration: 3000 + Math.random() * 2000, useNativeDriver: true })
+          ])).start();
+        }, []);
         return (
-          <Animated.View key={i} style={{ position: 'absolute', width: 8, height: 8, borderRadius: 4, backgroundColor: palette[i % palette.length], left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`, opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.4] }), transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) }] }} />
+          <Animated.View key={i} style={{
+            position: 'absolute', width: 8, height: 8, borderRadius: 4,
+            backgroundColor: palette[i % palette.length],
+            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+            opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.4] }),
+            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) }]
+          }} />
         );
       })}
     </View>
@@ -52,10 +62,10 @@ const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean 
 };
 
 const ConsciousnessCard = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+  const router = useRouter(); // ✅ داخل component
   const { userId, lang } = useTwinStore();
   const [notification, setNotification] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const isAr = lang === 'ar';
 
   useEffect(() => {
     if (visible && userId) {
@@ -85,8 +95,6 @@ const ConsciousnessCard = ({ visible, onClose }: { visible: boolean; onClose: ()
   );
 };
 
-const router = useRouter();
-
 export default function RootLayout() {
   const theme = useTwinStore(s => s.theme);
   const menuVisible = useTwinStore(s => s.menuVisible);
@@ -105,19 +113,34 @@ export default function RootLayout() {
   useEffect(() => { pluginRegistry.loadFromBackend(); }, []);
   useEffect(() => { setupNotificationHandlers(); setupAndroidChannels(); }, []);
   useEffect(() => { if (userId) registerForPushNotifications(); }, [userId]);
-  useEffect(() => { let cancelled = false; const setup = async () => { if (!cancelled) await initAnalytics(); }; setup(); return () => { cancelled = true; }; }, []);
-  useEffect(() => { Animated.spring(slideAnim, { toValue: menuVisible ? 0 : (isRTL ? drawerWidth : -drawerWidth), damping: 18, stiffness: 120, useNativeDriver: true }).start(); }, [menuVisible, drawerWidth, isRTL]);
-  useEffect(() => { if (twinEnergy > 80) setCurrentEmotion('joy'); else if (twinEnergy > 50) setCurrentEmotion('neutral'); else if (twinEnergy > 30) setCurrentEmotion('sadness'); else setCurrentEmotion('fear'); }, [twinEnergy]);
-
+  useEffect(() => {
+    let cancelled = false;
+    const setup = async () => { if (!cancelled) await initAnalytics(); };
+    setup();
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: menuVisible ? 0 : (isRTL ? drawerWidth : -drawerWidth),
+      damping: 18, stiffness: 120, useNativeDriver: true
+    }).start();
+  }, [menuVisible, drawerWidth, isRTL]);
+  useEffect(() => {
+    if (twinEnergy > 80) setCurrentEmotion('joy');
+    else if (twinEnergy > 50) setCurrentEmotion('neutral');
+    else if (twinEnergy > 30) setCurrentEmotion('sadness');
+    else setCurrentEmotion('fear');
+  }, [twinEnergy]);
   useEffect(() => {
     if (!userId) return;
-    const interval = setInterval(() => {
-      setShowConsciousnessCard(true);
-    }, 1800000);
+    const interval = setInterval(() => setShowConsciousnessCard(true), 1800000);
     return () => clearInterval(interval);
   }, [userId]);
 
-  const screenOptions = useMemo(() => ({ headerShown: false, contentStyle: { backgroundColor: isDark ? '#1A1A1A' : '#F8F6F2' } }), [isDark]);
+  const screenOptions = useMemo(() => ({
+    headerShown: false,
+    contentStyle: { backgroundColor: isDark ? '#1A1A1A' : '#F8F6F2' }
+  }), [isDark]);
 
   return (
     <ErrorBoundary>
@@ -159,7 +182,12 @@ export default function RootLayout() {
         {menuVisible && (
           <Modal visible transparent animationType="none" onRequestClose={closeMenu}>
             <Pressable style={st.overlay} onPress={closeMenu}>
-              <Animated.View style={[st.sidebar, { backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF', width: drawerWidth, [isRTL ? 'right' : 'left']: 0, transform: [{ translateX: slideAnim }] }]}>
+              <Animated.View style={[st.sidebar, {
+                backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
+                width: drawerWidth,
+                [isRTL ? 'right' : 'left']: 0,
+                transform: [{ translateX: slideAnim }]
+              }]}>
                 <SideMenu onClose={closeMenu} />
               </Animated.View>
             </Pressable>
