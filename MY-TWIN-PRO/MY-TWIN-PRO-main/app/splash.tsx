@@ -8,25 +8,27 @@ const SPLASH_BG = require('../assets/splash.png');
 const LOGO = require('../assets/logo.png');
 const { width, height } = Dimensions.get('window');
 
-// ============================================================
-// 1. NEURON NETWORK – خلايا عصبية كونية نابضة
-// ============================================================
 const NeuronNetwork = () => {
-  const neurons = Array.from({ length: 15 }).map((_, i) => ({
-    x: width * (0.2 + Math.random() * 0.6),
-    y: height * (0.2 + Math.random() * 0.6),
-    size: 4 + Math.random() * 6,
-    pulse: useRef(new Animated.Value(0.3 + Math.random() * 0.4)).current,
-    delay: Math.random() * 2000,
-  }));
+  const anims = useRef(
+    Array.from({ length: 15 }).map(() => new Animated.Value(0.3))
+  ).current;
+
+  const positions = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: width * (0.2 + Math.random() * 0.6),
+      y: height * (0.2 + Math.random() * 0.6),
+      size: 4 + Math.random() * 6,
+      delay: Math.random() * 2000,
+    }))
+  ).current;
 
   useEffect(() => {
-    neurons.forEach(n => {
+    anims.forEach((anim, i) => {
       Animated.loop(
         Animated.sequence([
-          Animated.delay(n.delay),
-          Animated.timing(n.pulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
-          Animated.timing(n.pulse, { toValue: 0.3, duration: 1500, useNativeDriver: true }),
+          Animated.delay(positions[i].delay),
+          Animated.timing(anim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 1500, useNativeDriver: true }),
         ])
       ).start();
     });
@@ -34,21 +36,18 @@ const NeuronNetwork = () => {
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      {neurons.map((n, i) => (
+      {anims.map((anim, i) => (
         <Animated.View
           key={i}
           style={{
             position: 'absolute',
-            left: n.x,
-            top: n.y,
-            width: n.size,
-            height: n.size,
-            borderRadius: n.size / 2,
+            left: positions[i].x,
+            top: positions[i].y,
+            width: positions[i].size,
+            height: positions[i].size,
+            borderRadius: positions[i].size / 2,
             backgroundColor: i % 2 === 0 ? '#FBBF24' : '#A855F7',
-            opacity: n.pulse,
-            shadowColor: i % 2 === 0 ? '#FBBF24' : '#A855F7',
-            shadowRadius: 10,
-            shadowOpacity: 0.9,
+            opacity: anim,
           }}
         />
       ))}
@@ -56,9 +55,6 @@ const NeuronNetwork = () => {
   );
 };
 
-// ============================================================
-// 2. SPLASH SCREEN – الشاشة الرئيسية
-// ============================================================
 export default function Splash() {
   const logoScale = useRef(new Animated.Value(0.2)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -67,7 +63,6 @@ export default function Splash() {
   const byOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 🛡️ تشغيل الصوت الكوني بأمان
     let soundObject: any = null;
     try {
       Audio.Sound.createAsync(require('../assets/chime_start.mp3')).then(({ sound }) => {
@@ -76,7 +71,6 @@ export default function Splash() {
       }).catch(() => {});
     } catch (e) {}
 
-    // تسلسل الحركات الكونية
     Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }),
@@ -87,7 +81,6 @@ export default function Splash() {
       Animated.timing(byOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
 
-    // الانتقال بعد 6 ثوانٍ
     const timer = setTimeout(() => {
       try {
         if (soundObject) soundObject.unloadAsync().catch(() => {});
@@ -133,32 +126,10 @@ const styles = StyleSheet.create({
   bgImage: { position: 'absolute', width, height },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
   logoWrapper: { marginBottom: 25 },
-  logoGlow: { 
-    shadowColor: '#A855F7', 
-    shadowOffset: { width: 0, height: 0 }, 
-    shadowOpacity: 0.9, 
-    shadowRadius: 30, 
-    elevation: 25,
-  },
+  logoGlow: { shadowColor: '#A855F7', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 30, elevation: 25 },
   logo: { width: 170, height: 170, borderRadius: 34 },
-  appName: { 
-    fontSize: 48, 
-    fontWeight: '900', 
-    letterSpacing: 2, 
-    color: '#FFFFFF', 
-    textShadowColor: 'rgba(168, 85, 247, 0.8)', 
-    textShadowRadius: 25, 
-    marginBottom: 15,
-  },
-  tagline: { 
-    fontSize: 16, 
-    fontWeight: '500', 
-    letterSpacing: 2, 
-    textAlign: 'center', 
-    paddingHorizontal: 40, 
-    color: 'rgba(255, 255, 255, 0.9)', 
-    marginBottom: 40,
-  },
+  appName: { fontSize: 48, fontWeight: '900', letterSpacing: 2, color: '#FFFFFF', textShadowColor: 'rgba(168, 85, 247, 0.8)', textShadowRadius: 25, marginBottom: 15 },
+  tagline: { fontSize: 16, fontWeight: '500', letterSpacing: 2, textAlign: 'center', paddingHorizontal: 40, color: 'rgba(255, 255, 255, 0.9)', marginBottom: 40 },
   footer: { position: 'absolute', bottom: 70, alignItems: 'center', zIndex: 10 },
   by: { fontSize: 17, fontWeight: '700', letterSpacing: 5, color: '#FBBF24', textTransform: 'uppercase', marginBottom: 10 },
   copy: { fontSize: 12, color: 'rgba(255, 255, 255, 0.7)' },
