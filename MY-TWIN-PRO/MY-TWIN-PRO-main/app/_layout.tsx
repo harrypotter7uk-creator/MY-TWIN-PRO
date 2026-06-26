@@ -15,7 +15,7 @@ import PresenceBubble from '../components/PresenceBubble';
 import { Sparkles } from 'lucide-react-native';
 
 // ============================================================
-// 1. PARTICLE FIELD – تم إصلاح استخدام Hooks بشكل صحيح
+// 1. PARTICLE FIELD – خالي من أخطاء TypeScript
 // ============================================================
 const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean }) => {
   const colors: Record<string, string[]> = {
@@ -25,7 +25,6 @@ const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean 
   };
   const palette = colors[emotion || 'neutral'] || colors.neutral;
   
-  // ✅ إنشاء جميع القيم خارج الـ map
   const particleCount = 12;
   const particles = useRef(
     Array.from({ length: particleCount }).map(() => ({
@@ -37,15 +36,17 @@ const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean 
   ).current;
 
   useEffect(() => {
-    const animations = particles.map(p =>
-      Animated.loop(
+    const loops: Animated.CompositeAnimation[] = particles.map(p => {
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(p.anim, { toValue: 1, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
           Animated.timing(p.anim, { toValue: 0, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
         ])
-      ).start()
-    );
-    return () => animations.forEach(a => a.stop());
+      );
+      loop.start();
+      return loop;
+    });
+    return () => loops.forEach(l => l.stop());
   }, []);
 
   return (
@@ -109,7 +110,6 @@ const ConsciousnessCard = ({ visible, onClose }: { visible: boolean; onClose: ()
 // 3. ROOT LAYOUT – آمن ومحمي بالكامل
 // ============================================================
 export default function RootLayout() {
-  // ✅ useTheme محمي بضمان وجود theme.isDark
   const theme = useTwinStore(s => s.theme);
   const isDark = theme === 'dark';
 
@@ -125,9 +125,8 @@ export default function RootLayout() {
   const [currentEmotion, setCurrentEmotion] = useState('neutral');
   const [showConsciousnessCard, setShowConsciousnessCard] = useState(false);
 
-  // ✅ تهيئة آمنة للمكونات
   useEffect(() => {
-    try { pluginRegistry.loadFromBackend(); } catch (e) {}
+    try { pluginRegistry.loadFromBackend().catch(() => {}); } catch (e) {}
     try { setupNotificationHandlers(); setupAndroidChannels(); } catch (e) {}
   }, []);
 
