@@ -90,7 +90,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "1b7f7005-4cab-4125-8649-5f5967d16ced"
+        "projectId": "49db469b-9aca-4ffc-8b34-88b140528840"
       },
       "cli": {
         "appVersionSource": "local"
@@ -102,7 +102,7 @@
     "updates": {
       "url": "https://u.expo.dev/b5e2baa3-6015-40a5-9f31-115298d3b0c9"
     },
-    "owner": "soulsync.x",
+    "owner": "soulsync.7",
     "sdkVersion": "52.0.0",
     "jsEngine": "hermes"
   }
