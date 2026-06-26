@@ -28,6 +28,7 @@
     },
     "android": {
       "package": "com.soulsync.mytwin",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0014"
