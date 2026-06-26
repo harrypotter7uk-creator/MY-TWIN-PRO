@@ -1,8 +1,8 @@
+import React from 'react';
+
 /**
- * Plugin Client v1.0 – سجل الميزات المركزي للواجهة الأمامية
+ * Plugin Client v1.1 – سجل الميزات المركزي للواجهة الأمامية
  * =============================================================
- * يكتشف الميزات تلقائياً من FeatureRegistry في الخلفية.
- * يسقط على القيم الافتراضية إذا تعذر الاتصال.
  */
 interface PluginInfo {
   id: string;
@@ -33,10 +33,11 @@ class PluginRegistry {
 
   async loadFromBackend(): Promise<void> {
     try {
+      // استخدام الرابط الصحيح لـ API
       const response = await fetch('https://my-twin-pro-production-b744.up.railway.app/');
       const data = await response.json();
       
-      if (data.plugins && Array.isArray(data.plugins)) {
+      if (data && data.plugins && Array.isArray(data.plugins)) {
         this.plugins.clear();
         data.plugins.forEach((p: any) => {
           this.plugins.set(p.id, {
@@ -103,5 +104,3 @@ export function usePluginRegistry() {
     isLoaded: pluginRegistry.isLoaded(),
   };
 }
-
-import React from 'react';

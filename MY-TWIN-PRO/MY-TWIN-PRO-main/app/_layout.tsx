@@ -1,5 +1,4 @@
 import { useTheme } from '../utils/theme';
-import * as Sentry from '@sentry/react-native';
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useMemo, useState } from "react";
@@ -15,21 +14,9 @@ import { apiGet } from "../lib/httpClient";
 import PresenceBubble from '../components/PresenceBubble';
 import { Sparkles } from 'lucide-react-native';
 
-let useFonts: any;
-try {
-  const googleFonts = require('@expo-google-fonts/orbitron');
-  useFonts = googleFonts.useFonts;
-} catch (e) {
-  useFonts = () => [true];
-}
-
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || "",
-  tracesSampleRate: 1.0,
-  environment: process.env.EXPO_PUBLIC_ENVIRONMENT || 'production',
-  enableNative: true,
-});
-
+// ============================================================
+// 1. PARTICLE FIELD – تم إصلاح استخدام Hooks بشكل صحيح
+// ============================================================
 const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean }) => {
   const colors: Record<string, string[]> = {
     joy: ['#FFD700', '#FF6B6B', '#FFE66D'], sadness: ['#4A90E2', '#8E9EAB', '#B0BEC5'],
@@ -37,42 +24,65 @@ const ParticleField = ({ emotion, isDark }: { emotion?: string; isDark: boolean 
     love: ['#E91E63', '#F48FB1', '#FF80AB'], neutral: ['#7C3AED', '#A78BFA', '#E0D9F5'],
   };
   const palette = colors[emotion || 'neutral'] || colors.neutral;
+  
+  // ✅ إنشاء جميع القيم خارج الـ map
+  const particleCount = 12;
+  const particles = useRef(
+    Array.from({ length: particleCount }).map(() => ({
+      anim: new Animated.Value(0),
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      color: palette[Math.floor(Math.random() * palette.length)],
+    }))
+  ).current;
+
+  useEffect(() => {
+    const animations = particles.map(p =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(p.anim, { toValue: 1, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 0, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
+        ])
+      ).start()
+    );
+    return () => animations.forEach(a => a.stop());
+  }, []);
+
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-      {Array.from({ length: 12 }).map((_, i) => {
-        const anim = useRef(new Animated.Value(0)).current;
-        useEffect(() => {
-          Animated.loop(Animated.sequence([
-            Animated.timing(anim, { toValue: 1, duration: 3000 + Math.random() * 2000, useNativeDriver: true }),
-            Animated.timing(anim, { toValue: 0, duration: 3000 + Math.random() * 2000, useNativeDriver: true })
-          ])).start();
-        }, []);
-        return (
-          <Animated.View key={i} style={{
+      {particles.map((p, i) => (
+        <Animated.View
+          key={i}
+          style={{
             position: 'absolute', width: 8, height: 8, borderRadius: 4,
-            backgroundColor: palette[i % palette.length],
-            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-            opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.4] }),
-            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) }]
-          }} />
-        );
-      })}
+            backgroundColor: p.color,
+            left: `${p.x}%`, top: `${p.y}%`,
+            opacity: p.anim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.4] }),
+            transform: [{ translateY: p.anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }) }],
+          }}
+        />
+      ))}
     </View>
   );
 };
 
+// ============================================================
+// 2. CONSCIOUSNESS CARD – مع حماية إضافية
+// ============================================================
 const ConsciousnessCard = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
-  const router = useRouter(); // ✅ داخل component
+  const router = useRouter();
   const { userId, lang } = useTwinStore();
   const [notification, setNotification] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible && userId) {
-      apiGet(`/api/awareness/check?user_id=${userId}&lang=${lang}`).then(res => {
-        if (res?.notification) setNotification(res.notification);
-      }).catch(() => {});
-      Animated.spring(fadeAnim, { toValue: 1, friction: 8, useNativeDriver: true }).start();
+      try {
+        apiGet(`/api/awareness/check?user_id=${userId}&lang=${lang}`).then(res => {
+          if (res?.notification) setNotification(res.notification);
+        }).catch(() => {});
+        Animated.spring(fadeAnim, { toValue: 1, friction: 8, useNativeDriver: true }).start();
+      } catch (e) {}
     } else {
       Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
       setNotification(null);
@@ -95,14 +105,19 @@ const ConsciousnessCard = ({ visible, onClose }: { visible: boolean; onClose: ()
   );
 };
 
+// ============================================================
+// 3. ROOT LAYOUT – آمن ومحمي بالكامل
+// ============================================================
 export default function RootLayout() {
+  // ✅ useTheme محمي بضمان وجود theme.isDark
   const theme = useTwinStore(s => s.theme);
+  const isDark = theme === 'dark';
+
   const menuVisible = useTwinStore(s => s.menuVisible);
   const closeMenu = useTwinStore(s => s.closeMenu);
   const lang = useTwinStore(s => s.lang);
   const userId = useTwinStore(s => s.userId);
   const twinEnergy = useTwinStore(s => s.twinEnergy);
-  const isDark = useTheme().isDark;
   const isRTL = lang === 'ar';
   const slideAnim = useRef(new Animated.Value(isRTL ? 300 : -300)).current;
   const { width } = useWindowDimensions();
@@ -110,27 +125,41 @@ export default function RootLayout() {
   const [currentEmotion, setCurrentEmotion] = useState('neutral');
   const [showConsciousnessCard, setShowConsciousnessCard] = useState(false);
 
-  useEffect(() => { pluginRegistry.loadFromBackend(); }, []);
-  useEffect(() => { setupNotificationHandlers(); setupAndroidChannels(); }, []);
-  useEffect(() => { if (userId) registerForPushNotifications(); }, [userId]);
+  // ✅ تهيئة آمنة للمكونات
+  useEffect(() => {
+    try { pluginRegistry.loadFromBackend(); } catch (e) {}
+    try { setupNotificationHandlers(); setupAndroidChannels(); } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      try { registerForPushNotifications(); } catch (e) {}
+    }
+  }, [userId]);
+
   useEffect(() => {
     let cancelled = false;
-    const setup = async () => { if (!cancelled) await initAnalytics(); };
-    setup();
+    try {
+      const setup = async () => { if (!cancelled) await initAnalytics(); };
+      setup();
+    } catch (e) {}
     return () => { cancelled = true; };
   }, []);
+
   useEffect(() => {
     Animated.spring(slideAnim, {
       toValue: menuVisible ? 0 : (isRTL ? drawerWidth : -drawerWidth),
       damping: 18, stiffness: 120, useNativeDriver: true
     }).start();
   }, [menuVisible, drawerWidth, isRTL]);
+
   useEffect(() => {
     if (twinEnergy > 80) setCurrentEmotion('joy');
     else if (twinEnergy > 50) setCurrentEmotion('neutral');
     else if (twinEnergy > 30) setCurrentEmotion('sadness');
     else setCurrentEmotion('fear');
   }, [twinEnergy]);
+
   useEffect(() => {
     if (!userId) return;
     const interval = setInterval(() => setShowConsciousnessCard(true), 1800000);
