@@ -1,19 +1,16 @@
 """
-Avatar Engine v1.0 – محرك الأفاتار الذكي
-=============================================
-يولد أفاتارًا فريدًا للمستخدم بناءً على هويته وحالته العاطفية.
-يتفاعل مع المشاعر (تعابير وجهية، ألوان، حركة).
-يتكامل مع TCMA و AIGateway.
+Avatar Engine v2.0 – محرك الأفاتار الذكي متعدد الأجناس والتعابير
+=====================================================================
+- يُولد أفاتارين (ذكر وأنثى) لكل مستخدم جديد
+- يُخزّن تعابير متعددة: سعيد، حزين، مهتم، عاطفي، داعم، محايد
+- يتكامل مع اختيار المستخدم للجنس
 """
-import logging, os, base64, asyncio, aiohttp, json
-from typing import Dict, Any, Optional, Tuple
+import logging, os, base64, asyncio, aiohttp
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
 logger = logging.getLogger("avatar_engine")
 
-# ============================================================
-# إعدادات الأفاتار
-# ============================================================
 AVATAR_STYLES = {
     "realistic": "واقعي",
     "anime": "أنمي",
@@ -30,21 +27,25 @@ EMOTION_TO_COLORS = {
     "love": "#E91E63, #F48FB1, #FF80AB",
     "surprise": "#FF9800, #FFC107, #FFEB3B",
     "neutral": "#7C3AED, #A78BFA, #E0D9F5",
+    "caring": "#10B981, #34D399, #A7F3D0",
+    "supportive": "#3B82F6, #60A5FA, #BFDBFE",
 }
 
 EMOTION_TO_EXPRESSION = {
-    "joy": "smiling warmly, bright eyes, relaxed posture",
-    "sadness": "gentle soft eyes, comforting presence, warm glow",
-    "anger": "calming aura, steady gaze, supportive stance",
-    "fear": "protective, reassuring smile, open arms",
-    "love": "affectionate gaze, warm smile, heart-centered glow",
-    "surprise": "curious eyes, energetic pose, vibrant aura",
-    "neutral": "attentive, calm, present, inviting"
+    "joy": "smiling warmly, bright eyes, relaxed posture, happiness glow",
+    "sadness": "gentle soft eyes, comforting presence, warm glow, empathetic",
+    "anger": "calming aura, steady gaze, supportive stance, peaceful",
+    "fear": "protective, reassuring smile, open arms, safety",
+    "love": "affectionate gaze, warm smile, heart-centered glow, tender",
+    "surprise": "curious eyes, energetic pose, vibrant aura, wonder",
+    "neutral": "attentive, calm, present, inviting, peaceful",
+    "caring": "compassionate eyes, gentle smile, nurturing pose, warmth",
+    "supportive": "encouraging smile, strong stance, reliable, confident",
 }
 
+ALL_EMOTIONS = ["neutral", "joy", "sadness", "caring", "supportive", "love"]
+
 class AvatarEngine:
-    """محرك الأفاتار – يولد ويتفاعل مع المستخدم"""
-    
     def __init__(self):
         self._cache: Dict[str, Dict] = {}
         self._ai_gateway = None
@@ -53,12 +54,12 @@ class AvatarEngine:
     async def initialize(self, ai_gateway: Any, memory_client: Any):
         self._ai_gateway = ai_gateway
         self._memory_client = memory_client
-        logger.info("✅ Avatar Engine initialized")
+        logger.info("✅ Avatar Engine v2.0 initialized (multi-gender, multi-emotion)")
     
-    async def generate_avatar(
+    async def generate_avatars(
         self, user_id: str, user_name: str, style: str = "realistic", language: str = "ar"
     ) -> Dict[str, Any]:
-        """توليد أفاتار فريد للمستخدم"""
+        """توليد أفاتارين (ذكر وأنثى) لكل مستخدم جديد"""
         identity_traits = []
         current_emotion = "neutral"
         
@@ -69,22 +70,65 @@ class AvatarEngine:
             except: pass
         
         traits_text = ", ".join(identity_traits[:5]) if identity_traits else "شخصية فريدة"
-        expression = EMOTION_TO_EXPRESSION.get(current_emotion, EMOTION_TO_EXPRESSION["neutral"])
-        colors = EMOTION_TO_COLORS.get(current_emotion, EMOTION_TO_COLORS["neutral"])
         
-        prompt = f"""Create a digital avatar for '{user_name}'. Traits: {traits_text}. Emotion: {current_emotion}. Expression: {expression}. Style: {AVATAR_STYLES.get(style, 'realistic')}. Colors: {colors}. Make it warm, engaging, and conscious-looking."""
+        avatars = {"male": {}, "female": {}}
         
-        image_url = await self._generate_image(prompt, style)
+        for gender in ["male", "female"]:
+            gender_label = "رجل" if gender == "male" else "امرأة"
+            gender_en = "man" if gender == "male" else "woman"
+            
+            prompt = f"""Create a digital avatar of a {gender_en} named '{user_name}'. Traits: {traits_text}. Emotion: {current_emotion}. Expression: {EMOTION_TO_EXPRESSION.get(current_emotion, EMOTION_TO_EXPRESSION['neutral'])}. Style: {AVATAR_STYLES.get(style, 'realistic')}. Colors: {EMOTION_TO_COLORS.get(current_emotion, EMOTION_TO_COLORS['neutral'])}. Make it warm, engaging, and conscious-looking."""
+            
+            image_url = await self._generate_image(prompt, style)
+            
+            # توليد تعابير إضافية
+            emotion_variants = {}
+            for emotion in ALL_EMOTIONS[:4]:
+                if emotion == current_emotion: continue
+                emotion_prompt = f"""Create the same avatar of a {gender_en} named '{user_name}', but with {EMOTION_TO_EXPRESSION.get(emotion, 'neutral')} expression. Colors: {EMOTION_TO_COLORS.get(emotion, EMOTION_TO_COLORS['neutral'])}. Keep the same face and style."""
+                emotion_url = await self._generate_image(emotion_prompt, style)
+                if emotion_url and emotion_url != "default_avatar":
+                    emotion_variants[emotion] = emotion_url
+            
+            avatars[gender] = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "gender": gender,
+                "style": style,
+                "emotion": current_emotion,
+                "traits": identity_traits,
+                "image_url": image_url,
+                "emotion_variants": emotion_variants,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
         
-        avatar_data = {
-            "user_id": user_id, "user_name": user_name,
-            "style": style, "emotion": current_emotion,
-            "traits": identity_traits, "image_url": image_url,
-            "generated_at": datetime.now(timezone.utc).isoformat(), "colors": colors
+        result = {
+            "user_id": user_id,
+            "user_name": user_name,
+            "male": avatars["male"],
+            "female": avatars["female"],
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         
-        self._cache[user_id] = avatar_data
-        return avatar_data
+        self._cache[user_id] = result
+        return result
+    
+    async def get_avatar_by_gender(self, user_id: str, gender: str = "female") -> Optional[Dict[str, Any]]:
+        """استرجاع الأفاتار حسب الجنس المختار"""
+        cached = self._cache.get(user_id)
+        if cached and gender in cached:
+            return cached[gender]
+        if cached:
+            return cached.get("female") or cached.get("male")
+        return None
+    
+    async def get_avatar_with_emotion(self, user_id: str, gender: str, emotion: str) -> Optional[str]:
+        """استرجاع صورة الأفاتار حسب المشاعر"""
+        avatar = await self.get_avatar_by_gender(user_id, gender)
+        if not avatar: return None
+        if avatar.get("emotion") == emotion: return avatar.get("image_url")
+        variants = avatar.get("emotion_variants", {})
+        return variants.get(emotion, avatar.get("image_url"))
     
     async def _generate_image(self, prompt: str, style: str) -> str:
         """توليد صورة الأفاتار: Pollinations.ai أساسي، Gemini احتياطي"""
@@ -118,22 +162,16 @@ class AvatarEngine:
         return "default_avatar"
     
     async def get_avatar(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """استرجاع أفاتار المستخدم"""
+        """استرجاع أفاتار المستخدم (للتوافق مع الكود القديم)"""
         return self._cache.get(user_id)
     
     async def update_emotion(self, user_id: str, new_emotion: str) -> Optional[Dict[str, Any]]:
-        """تحديث تعبير الأفاتار"""
         avatar = self._cache.get(user_id)
         if not avatar: return None
-        avatar["emotion"] = new_emotion
-        avatar["colors"] = EMOTION_TO_COLORS.get(new_emotion, EMOTION_TO_COLORS["neutral"])
+        for gender in ["male", "female"]:
+            if gender in avatar:
+                avatar[gender]["emotion"] = new_emotion
         return avatar
-    
-    def get_emotion_colors(self, emotion: str) -> str:
-        return EMOTION_TO_COLORS.get(emotion, EMOTION_TO_COLORS["neutral"])
-    
-    def get_emotion_expression(self, emotion: str) -> str:
-        return EMOTION_TO_EXPRESSION.get(emotion, EMOTION_TO_EXPRESSION["neutral"])
 
 avatar_engine = AvatarEngine()
-logger.info("✅ Avatar Engine v1.0 initialized")
+logger.info("✅ Avatar Engine v2.0 initialized – multi-gender, multi-emotion support")

@@ -32,6 +32,7 @@ export const ChatInput = memo(({
 }: any) => {
   const inputRef = useRef<TextInput>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [inputHeight, setInputHeight] = React.useState(40);
 
   useEffect(() => {
     if (isRecording) {
@@ -82,6 +83,8 @@ export const ChatInput = memo(({
   };
 
   const hasContent = input.trim().length > 0 || (activeTools && activeTools.length > 0);
+  const sendActiveColor = '#7C3AED';
+  const sendInactiveColor = '#C7C7CC';
 
   return (
     <>
@@ -116,7 +119,11 @@ export const ChatInput = memo(({
         <View style={[styles.inputWrap, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
           <TextInput
             ref={inputRef}
-            style={[styles.textInput, isRTL && { textAlign: 'right' }, { color: colors.text }]}
+            style={[
+              styles.textInput,
+              isRTL && { textAlign: 'right' },
+              { color: colors.text, height: Math.max(40, Math.min(inputHeight, 120)) },
+            ]}
             value={input}
             onChangeText={setInput}
             placeholder={lang === 'ar' ? 'اكتب رسالتك... 💬' : 'Type a message... 💬'}
@@ -128,6 +135,9 @@ export const ChatInput = memo(({
             returnKeyType="default"
             autoCorrect={false}
             autoCapitalize="sentences"
+            onContentSizeChange={(e) => {
+              setInputHeight(e.nativeEvent.contentSize.height);
+            }}
           />
 
           <TouchableOpacity
@@ -160,10 +170,17 @@ export const ChatInput = memo(({
           disabled={loading || !hasContent}
           style={[
             styles.sendBtn,
-            { backgroundColor: hasContent && !loading ? colors.sendActive : colors.sendInactive }
+            {
+              backgroundColor: hasContent && !loading ? sendActiveColor : sendInactiveColor,
+              opacity: hasContent && !loading ? 1 : 0.5,
+            },
           ]}
         >
-          {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Send size={20} stroke="#FFF" />}
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Send size={20} stroke="#FFF" />
+          )}
         </TouchableOpacity>
       </View>
 

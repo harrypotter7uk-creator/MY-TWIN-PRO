@@ -16,7 +16,7 @@ import { COLORS, ThinkingBar, WelcomeState, EnergyModal } from './ChatComponents
 import { UserBubble, TwinBubble, ToolChip } from './ChatBubbles';
 import { ChatInput } from './ChatInput';
 
-const APP_ICON = require('../../assets/icon.png');
+const APP_LOGO = require('../../assets/logo.png');
 
 export default function Chat() {
   const insets = useSafeAreaInsets();
@@ -144,10 +144,10 @@ export default function Chat() {
       <TwinBubble
         item={item} isDark={isDark} isRTL={isRTL} isLast={false} userId={userId}
         onCopy={() => {}} onRetry={() => {}} onRegenerate={() => {}} onLike={() => {}} onDislike={() => {}}
-        provider={item.provider} lang={lang}
+        provider={item.provider} lang={lang} twinName={twinName}
       />
     );
-  }, [isDark, isRTL, lang, userId]);
+  }, [isDark, isRTL, lang, userId, twinName]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -163,7 +163,7 @@ export default function Chat() {
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Animated.View style={{ transform: [{ scale: heartbeatAnim }] }}>
-              <Image source={APP_ICON} style={{ width: 32, height: 32, borderRadius: 16, marginBottom: 4 }} />
+              <Image source={APP_LOGO} style={{ width: 32, height: 32, borderRadius: 16, marginBottom: 4 }} />
             </Animated.View>
             <Text style={[styles.headerName, { color: colors.text }]}>{twinName}</Text>
             <View style={styles.miniIndicators}>
@@ -216,15 +216,10 @@ export default function Chat() {
           ListFooterComponent={loading ? (
             <View>
               <View style={styles.typingRow}>
-                <Image source={APP_ICON} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                <Image source={APP_LOGO} style={{ width: 28, height: 28, borderRadius: 14 }} />
                 <TypingIndicator />
               </View>
-              {thinkingStage === 'memory' && (
-                <View style={styles.memoryIndicator}>
-                  <BrainCircuit size={14} stroke="#7C3AED" />
-                  <Text style={styles.memoryText}>يتذكر...</Text>
-                </View>
-              )}
+              <ThinkingBar stage={thinkingStage} isDark={isDark} />
             </View>
           ) : null}
           contentContainerStyle={styles.listContent}
@@ -244,7 +239,7 @@ export default function Chat() {
         <ChatInput
           input={input} setInput={setInput} loading={loading} isRTL={isRTL} isDark={isDark} colors={colors} lang={lang}
           onSend={send} showAttach={showAttach} setShowAttach={setShowAttach} attachAnim={attachAnim}
-          bottomInset={insets.bottom}
+          bottomInset={insets.bottom} voiceEnabled={voiceEnabled} toggleSound={toggleSound}
         />
       </KeyboardAvoidingView>
 

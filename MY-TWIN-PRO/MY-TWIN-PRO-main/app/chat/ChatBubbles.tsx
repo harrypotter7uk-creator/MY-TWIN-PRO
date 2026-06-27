@@ -11,7 +11,7 @@ import Markdown from 'react-native-markdown-display';
 import * as WebBrowser from 'expo-web-browser';
 import * as Clipboard from 'expo-clipboard';
 
-const APP_ICON = require('../../assets/icon.png');
+const APP_LOGO = require('../../assets/logo.png');
 import { getEmotionColor } from '../../utils/theme';
 
 export const COLORS = {
@@ -37,7 +37,7 @@ export const COLORS = {
 
 const emotionEmoji: Record<string, string> = {
   joy: '😊', sadness: '😢', anger: '😠', fear: '😨', love: '❤️',
-  surprise: '😮', neutral: '😌',
+  surprise: '😮', neutral: '😌', caring: '🤝', supportive: '💪',
 };
 
 const providerLabels: Record<string, { ar: string; en: string; icon: any }> = {
@@ -47,6 +47,7 @@ const providerLabels: Record<string, { ar: string; en: string; icon: any }> = {
   gemini: { ar: 'Gemini', en: 'Gemini', icon: Sparkles },
   groq: { ar: 'Groq', en: 'Groq', icon: Cpu },
   openrouter: { ar: 'OpenRouter', en: 'OpenRouter', icon: Zap },
+  huggingface: { ar: 'HuggingFace', en: 'HuggingFace', icon: Brain },
   tool: { ar: 'أداة', en: 'Tool', icon: Zap },
   error: { ar: 'خطأ', en: 'Error', icon: X },
   fallback: { ar: 'احتياطي', en: 'Fallback', icon: X },
@@ -87,7 +88,7 @@ export const UserBubble = memo(({ item, isDark }: any) => {
   );
 });
 
-export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, onRegenerate, onLike, onDislike, provider, lang }: any) => {
+export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, onRegenerate, onLike, onDislike, provider, lang, twinName }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
@@ -112,8 +113,8 @@ export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, 
   return (
     <Animated.View style={[styles.twinRow, { opacity: fadeAnim }]}>
       <View style={styles.twinAvatarContainer}>
-        <Image source={APP_ICON} style={styles.twinAvatar} />
-        <Text style={[styles.twinName, { color: c.text }]}>MyTwin</Text>
+        <Image source={APP_LOGO} style={styles.twinAvatar} />
+        <Text style={[styles.twinName, { color: c.text }]}>{twinName || 'MyTwin'}</Text>
       </View>
 
       <View style={[styles.twinCard, { backgroundColor: c.twinBg, borderColor: c.border }]}>
