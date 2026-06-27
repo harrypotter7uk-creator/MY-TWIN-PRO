@@ -436,7 +436,7 @@ export const useTwinStore = create<TwinStore>()(
     }),
     {
       name: 'mytwin-store',
-      version: 10,
+      version: 1, // تم تغيير الإصدار لتجاهل البيانات المخزنة السابقة
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         userId: state.userId,
