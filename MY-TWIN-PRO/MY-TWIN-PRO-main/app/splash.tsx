@@ -8,6 +8,9 @@ const SPLASH_BG = require('../assets/splash.png');
 const LOGO = require('../assets/logo.png');
 const { width, height } = Dimensions.get('window');
 
+// ============================================================
+// 1. NEURON NETWORK – خلايا عصبية ذهبية وبنفسجية نابضة
+// ============================================================
 const NeuronNetwork = () => {
   const anims = useRef(
     Array.from({ length: 15 }).map(() => new Animated.Value(0.3))
@@ -48,6 +51,9 @@ const NeuronNetwork = () => {
             borderRadius: positions[i].size / 2,
             backgroundColor: i % 2 === 0 ? '#FBBF24' : '#A855F7',
             opacity: anim,
+            shadowColor: i % 2 === 0 ? '#FBBF24' : '#A855F7',
+            shadowRadius: 6,
+            shadowOpacity: 0.8,
           }}
         />
       ))}
@@ -55,6 +61,9 @@ const NeuronNetwork = () => {
   );
 };
 
+// ============================================================
+// 2. SPLASH SCREEN – الشاشة الرئيسية
+// ============================================================
 export default function Splash() {
   const logoScale = useRef(new Animated.Value(0.2)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -63,14 +72,18 @@ export default function Splash() {
   const byOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // 🛡️ تشغيل الصوت الكوني start.mp3 مع حماية كاملة ضد التعطل
     let soundObject: any = null;
     try {
-      Audio.Sound.createAsync(require('../assets/chime_start.mp3')).then(({ sound }) => {
-        soundObject = sound;
-        sound.playAsync().catch(() => {});
-      }).catch(() => {});
+      Audio.Sound.createAsync(require('../assets/start.mp3'))
+        .then(({ sound }) => {
+          soundObject = sound;
+          sound.playAsync().catch(() => {});
+        })
+        .catch(() => {});
     } catch (e) {}
 
+    // تسلسل الحركات الكونية
     Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }),
@@ -81,6 +94,7 @@ export default function Splash() {
       Animated.timing(byOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
 
+    // الانتقال بعد 6 ثوانٍ
     const timer = setTimeout(() => {
       try {
         if (soundObject) soundObject.unloadAsync().catch(() => {});
@@ -95,14 +109,18 @@ export default function Splash() {
 
     return () => {
       clearTimeout(timer);
-      if (soundObject) soundObject.unloadAsync().catch(() => {});
+      try {
+        if (soundObject) soundObject.unloadAsync().catch(() => {});
+      } catch (e) {}
     };
   }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar hidden />
+      {/* ✅ الخلفية الأصلية من assets */}
       <Image source={SPLASH_BG} style={styles.bgImage} resizeMode="cover" />
+      {/* ✅ الخلايا العصبية الذهبية والبنفسجية */}
       <NeuronNetwork />
       <View style={styles.content}>
         <Animated.View style={[styles.logoWrapper, { transform: [{ scale: logoScale }], opacity: logoOpacity }]}>
