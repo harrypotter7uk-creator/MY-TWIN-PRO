@@ -46,7 +46,6 @@ export default function Chat() {
   const contextLimit = tier === 'free' ? 15 : tier === 'plus' ? 40 : 100;
   const isNearLimit = chatHistory.length >= contextLimit - 3;
 
-  // ألوان الطاقة
   const energyColor = twinEnergy > 60 ? '#34C759' : twinEnergy > 25 ? '#FF9500' : '#FF3B30';
 
   useEffect(() => {
@@ -104,7 +103,6 @@ export default function Chat() {
         emotion: response.emotion?.primary, provider: response.provider || 'orchestrator',
       });
 
-      // ✅ زيادة الترابط بعد كل رسالة ناجحة
       const newBond = Math.min(bondLevel + (Math.random() * 0.3 + 0.1), 100);
       updateBond(newBond);
 
@@ -113,7 +111,7 @@ export default function Chat() {
       }
       setThinkingStage('completed');
     } catch (error: any) {
-      const errMsg = lang === 'ar' ? 'حدث خطأ ما. حاول مجدداً 💜' : 'Something went wrong. Try again 💜';
+      const errMsg = lang === 'ar' ? 'عذراً، حدث خطأ في الاتصال 💜' : 'Connection error. Please try again 💜';
       addMessage({
         id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
         role: 'twin', content: errMsg, timestamp: Date.now(), failed: true, provider: 'error',
@@ -152,10 +150,14 @@ export default function Chat() {
   }, [isDark, isRTL, lang, userId]);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={openMenu} style={styles.menuBtn}>
             <Menu size={22} stroke={colors.text} />
           </TouchableOpacity>
@@ -181,14 +183,12 @@ export default function Chat() {
           </View>
         </View>
 
-        {/* ✅ شريط الطاقة الكوني */}
         <View style={styles.energyBarContainer}>
           <View style={[styles.energyBarBg, { backgroundColor: isDark ? '#2D1B4D' : '#E8E8E3' }]}>
             <View style={[styles.energyBarFill, { width: `${twinEnergy}%`, backgroundColor: energyColor }]} />
           </View>
         </View>
 
-        {/* شريط الترابط */}
         <View style={styles.bondBarContainer}>
           <Heart size={10} stroke="#EC4899" fill="#EC4899" />
           <View style={[styles.bondBarBg, { backgroundColor: isDark ? '#2D1B4D' : '#FCE7F3' }]}>
@@ -230,6 +230,7 @@ export default function Chat() {
           contentContainerStyle={styles.listContent}
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         />
 
         {activeToolsList.length > 0 && (
@@ -243,6 +244,7 @@ export default function Chat() {
         <ChatInput
           input={input} setInput={setInput} loading={loading} isRTL={isRTL} isDark={isDark} colors={colors} lang={lang}
           onSend={send} showAttach={showAttach} setShowAttach={setShowAttach} attachAnim={attachAnim}
+          bottomInset={insets.bottom}
         />
       </KeyboardAvoidingView>
 

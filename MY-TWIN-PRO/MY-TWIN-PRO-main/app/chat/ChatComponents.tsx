@@ -56,28 +56,48 @@ const thinkStyles = StyleSheet.create({
   text: { fontSize: 13, fontWeight: '600' },
 });
 
+// ✅ WelcomeState – اختصارات بصيغة المتكلم تجعل المستخدم يتحدث عن نفسه
 export const WelcomeState = memo(({ isDark, lang, twinName, onSuggestion }: any) => {
   const c = isDark ? COLORS.dark : COLORS.light;
+
+  // الرسائل بصيغة المتكلم – المستخدم يتحدث عن نفسه
   const suggestions = lang === 'ar' ? [
-    'أخبرني عن يومك...', 'ماذا تريد أن نفعل اليوم؟', 'شاركني بشيء يفرحك',
+    { text: 'اليوم كان عندي يوم مليان أحداث وحابب أشاركه معاك', icon: '📅' },
+    { text: 'فيه حاجة مفرحاني قوي وعايز أحكيلك عليها', icon: '😊' },
+    { text: 'أنا محتار في موضوع معين ومش عارف أتصرف', icon: '🤔' },
+    { text: 'عندي حلم كبير نفسي أوصل له', icon: '💭' },
   ] : [
-    'Tell me about your day...', 'What shall we do today?', 'Share something that made you happy',
+    { text: 'I had such an eventful day and I want to tell you about it', icon: '📅' },
+    { text: 'Something really made me happy and I want to share it with you', icon: '😊' },
+    { text: "I'm confused about something and don't know what to do", icon: '🤔' },
+    { text: 'I have a big dream I really want to achieve', icon: '💭' },
   ];
+
   return (
     <View style={styles.welcomeContainer}>
       <View style={[styles.welcomeIconWrap, { backgroundColor: c.accent + '15' }]}>
         <Sparkles size={40} stroke={c.accent} />
       </View>
       <Text style={[styles.welcomeTitle, { color: c.text }]}>
-        {lang === 'ar' ? `أهلاً بك، ${twinName || 'توأمك'} معك` : `Welcome! ${twinName || 'Your Twin'} is here`}
+        {lang === 'ar'
+          ? `مرحباً ${twinName || ''}! أنا في انتظارك`
+          : `Hi ${twinName || ''}! I'm all ears`}
       </Text>
       <Text style={[styles.welcomeSub, { color: c.subtext }]}>
-        {lang === 'ar' ? 'أنا كيانك الرقمي. اسألني عما تريد' : 'I am your digital twin. Ask me anything'}
+        {lang === 'ar'
+          ? 'أخبرني عن يومك، أفكارك، أو أي شيء يشغل بالك'
+          : 'Tell me about your day, your thoughts, or anything on your mind'}
       </Text>
       <View style={styles.suggestionsWrap}>
         {suggestions.map((s, i) => (
-          <TouchableOpacity key={i} style={[styles.suggestionChip, { backgroundColor: c.inputBg, borderColor: c.border }]} onPress={() => onSuggestion(s)} activeOpacity={0.7}>
-            <Text style={[styles.suggestionText, { color: c.text }]}>{s}</Text>
+          <TouchableOpacity
+            key={i}
+            style={[styles.suggestionChip, { backgroundColor: c.inputBg, borderColor: c.border }]}
+            onPress={() => onSuggestion(s.text)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.suggestionEmoji}>{s.icon}</Text>
+            <Text style={[styles.suggestionText, { color: c.text }]}>{s.text}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -124,10 +144,11 @@ const styles = StyleSheet.create({
   welcomeContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 24 },
   welcomeIconWrap: { width: 80, height: 80, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   welcomeTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
-  welcomeSub: { fontSize: 15, textAlign: 'center', marginBottom: 24 },
+  welcomeSub: { fontSize: 15, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
   suggestionsWrap: { gap: 10, width: '100%' },
-  suggestionChip: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 16, borderWidth: 1, alignItems: 'center' },
-  suggestionText: { fontSize: 15, fontWeight: '500' },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+  suggestionEmoji: { fontSize: 20 },
+  suggestionText: { fontSize: 15, fontWeight: '500', flex: 1 },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 30 },
   energyCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 30, alignItems: 'center', width: '100%', maxWidth: 350 },
   energyTitle: { fontSize: 22, fontWeight: '800', color: '#1A1226', marginBottom: 12 },

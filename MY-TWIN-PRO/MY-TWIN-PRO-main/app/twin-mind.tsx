@@ -1,15 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, RefreshControl, Image, Modal, TextInput, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Animated, RefreshControl, Image, Modal, TextInput, Alert,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../store/useTwinStore';
+import { useTheme } from '../utils/theme';
 import { router } from 'expo-router';
 import { apiGet, apiPost } from '../lib/httpClient';
-import { Sparkles, Heart, Zap, Brain, TrendingUp, Crown, MessageSquare, Lightbulb, Activity, Eye, Bell, Calendar, Plus, X } from 'lucide-react-native';
+import {
+  Sparkles, Heart, Zap, Brain, TrendingUp, Crown, MessageSquare,
+  Lightbulb, Activity, Eye, Bell, Calendar, Plus, X,
+} from 'lucide-react-native';
 
 export default function TwinMindCenter() {
   const insets = useSafeAreaInsets();
   const { userId, twinName, tier, bondLevel, twinEnergy, journeyPhase, lang } = useTwinStore();
+  const theme = useTheme();
   const isAr = lang === 'ar';
+  const isDark = theme.isDark;
 
   const [avatar, setAvatar] = useState<any>(null);
   const [fingerprint, setFingerprint] = useState<any>(null);
@@ -20,14 +29,25 @@ export default function TwinMindCenter() {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const [syncModalVisible, setSyncModalVisible] = useState(false);
   const [syncEventTitle, setSyncEventTitle] = useState('');
   const [syncEventDate, setSyncEventDate] = useState('');
   const [syncLoading, setSyncLoading] = useState(false);
 
   const colors = {
-    bg: '#0A0014', card: '#1A1226', text: '#FFFFFF', subtext: '#A78BFA', accent: '#7C3AED', accentLight: '#7C3AED20', border: '#2D1B4D',
-    success: '#10B981', warning: '#F59E0B', pink: '#EC4899', gold: '#F59E0B', blue: '#3B82F6',
+    bg: isDark ? '#0A0014' : '#FAFAF8',
+    card: isDark ? '#1A1226' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#2D2D2D',
+    subtext: isDark ? '#A78BFA' : '#7C6B99',
+    accent: '#7C3AED',
+    accentLight: '#7C3AED20',
+    border: isDark ? '#2D1B4D' : '#E8E8E3',
+    success: '#10B981',
+    warning: '#F59E0B',
+    pink: '#EC4899',
+    gold: '#F59E0B',
+    blue: '#3B82F6',
   };
 
   const fetchData = async () => {
@@ -79,13 +99,18 @@ export default function TwinMindCenter() {
 
   const energyColor = twinEnergy > 60 ? '#10B981' : twinEnergy > 25 ? '#F59E0B' : '#EF4444';
   const phaseLabels: Record<string, string> = {
-    introduction: isAr ? 'تعارف' : 'Intro', trust_building: isAr ? 'بناء ثقة' : 'Trust', deepening: isAr ? 'تعمق' : 'Deep', growth: isAr ? 'نمو' : 'Growth', mature: isAr ? 'نضج' : 'Mature',
+    introduction: isAr ? 'تعارف' : 'Intro', trust_building: isAr ? 'بناء ثقة' : 'Trust',
+    deepening: isAr ? 'تعمق' : 'Deep', growth: isAr ? 'نمو' : 'Growth', mature: isAr ? 'نضج' : 'Mature',
   };
 
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
-      <ScrollView contentContainerStyle={st.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}>
+      <ScrollView
+        contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}
+      >
         <Animated.View style={{ opacity: fadeAnim }}>
+          {/* الأفاتار والطاقة */}
           <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[st.avatarGlow, { borderColor: energyColor }]}>
               {avatar?.image_url ? <Image source={{ uri: avatar.image_url }} style={st.avatarImg} /> : <Sparkles size={60} stroke={colors.accent} />}
@@ -98,6 +123,7 @@ export default function TwinMindCenter() {
             </View>
           </View>
 
+          {/* مقاييس سريعة */}
           <View style={st.metricsRow}>
             {[
               { icon: Heart, val: `${Math.round(bondLevel)}%`, label: isAr ? 'الرابطة' : 'Bond', color: '#EC4899' },
@@ -113,6 +139,7 @@ export default function TwinMindCenter() {
             ))}
           </View>
 
+          {/* Awareness Score */}
           {awarenessScore && (
             <View style={[st.awarenessScoreCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
               <View style={st.awarenessScoreHeader}><Eye size={22} stroke={colors.accent} /><Text style={[st.awarenessScoreTitle, { color: colors.accent }]}>{isAr ? 'مدى فهم توأمك لك' : 'Your Twin Understands You'}</Text></View>
@@ -138,6 +165,7 @@ export default function TwinMindCenter() {
             </View>
           )}
 
+          {/* Notification Limits */}
           {notificationFreq && (
             <View style={[st.notifCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={st.cardHeader}><Bell size={18} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'الإشعارات الاستباقية' : 'Proactive Notifications'}</Text></View>
@@ -169,6 +197,7 @@ export default function TwinMindCenter() {
             </TouchableOpacity>
           </View>
 
+          {/* اختصارات واضحة للمستخدم الجديد */}
           <Text style={[st.sectionTitle, { color: colors.text }]}>{isAr ? 'قدرات وعيي' : 'My Mind Powers'}</Text>
           <View style={st.shortcutsGrid}>
             {[
@@ -178,9 +207,17 @@ export default function TwinMindCenter() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <TouchableOpacity key={item.id} style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(item.route as any)}>
-                  <Icon size={28} stroke={item.color} />
-                  <Text style={[st.shortcutLabel, { color: colors.text }]}>{isAr ? item.label_ar : item.label_en}</Text>
+                <TouchableOpacity
+                  key={item.id}
+                  style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => router.push(item.route as any)}
+                >
+                  <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}>
+                    <Icon size={28} stroke={item.color} />
+                  </View>
+                  <Text style={[st.shortcutLabel, { color: colors.text }]}>
+                    {isAr ? item.label_ar : item.label_en}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -206,7 +243,7 @@ export default function TwinMindCenter() {
 
 const st = StyleSheet.create({
   root: { flex: 1 },
-  content: { padding: 16, paddingBottom: 50 },
+  content: { padding: 16 },
   avatarCard: { alignItems: 'center', padding: 24, borderRadius: 24, borderWidth: 1, marginBottom: 20 },
   avatarGlow: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   avatarImg: { width: 80, height: 80, borderRadius: 40 },
@@ -249,7 +286,8 @@ const st = StyleSheet.create({
   syncButtonText: { fontSize: 14, fontWeight: '600' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   shortcutsGrid: { flexDirection: 'row', gap: 12 },
-  shortcut: { flex: 1, alignItems: 'center', padding: 20, borderRadius: 18, borderWidth: 1, gap: 8 },
+  shortcut: { flex: 1, alignItems: 'center', padding: 20, borderRadius: 18, borderWidth: 1, gap: 12 },
+  shortcutIconBubble: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   shortcutLabel: { fontSize: 14, fontWeight: '600' },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
   modalContent: { width: '85%', borderRadius: 24, borderWidth: 1, padding: 24 },

@@ -5,10 +5,9 @@ import {
 } from 'react-native';
 import {
   Send, X, Camera, Image as ImageIcon, FileText,
-  Search, Cloud, Music, Film, DollarSign, TrendingUp,
+  Search, Cloud, Music, Film, TrendingUp,
   Wand2, Mic, MicOff, GraduationCap, Code2, Heart,
   Moon, PenLine, BarChart3, Home, Volume2, VolumeX,
-  Database, Zap,
 } from 'lucide-react-native';
 import { ToolChip } from './ChatBubbles';
 
@@ -29,6 +28,7 @@ export const ChatInput = memo(({
   showAttach, setShowAttach, attachAnim,
   isRecording = false, onMicPress,
   onFeatureSelect, voiceEnabled, toggleSound,
+  bottomInset = 0,
 }: any) => {
   const inputRef = useRef<TextInput>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -54,10 +54,8 @@ export const ChatInput = memo(({
     { id: 'youtube', icon: Film, label_ar: 'يوتيوب', label_en: 'YouTube', color: '#EF4444', category: 'tool' },
     { id: 'music', icon: Music, label_ar: 'موسيقى', label_en: 'Music', color: '#EC4899', category: 'tool' },
     { id: 'weather', icon: Cloud, label_ar: 'طقس', label_en: 'Weather', color: '#06B6D4', category: 'tool' },
-    { id: 'currency', icon: DollarSign, label_ar: 'عملات', label_en: 'Currency', color: '#10B981', category: 'tool' },
     { id: 'news', icon: TrendingUp, label_ar: 'أخبار', label_en: 'News', color: '#8B5CF6', category: 'tool' },
     { id: 'search', icon: Search, label_ar: 'بحث', label_en: 'Search', color: '#6366F1', category: 'tool' },
-    { id: 'deep_search', icon: Zap, label_ar: 'بحث عميق', label_en: 'Deep Search', color: '#F59E0B', category: 'tool' },
     { id: 'study', icon: GraduationCap, label_ar: 'مذاكرة', label_en: 'Study', color: '#3B82F6', category: 'feature' },
     { id: 'code', icon: Code2, label_ar: 'برمجة', label_en: 'Code', color: '#10B981', category: 'feature' },
     { id: 'business', icon: BarChart3, label_ar: 'تحليل أعمال', label_en: 'Business', color: '#F59E0B', category: 'feature' },
@@ -106,7 +104,7 @@ export const ChatInput = memo(({
         </ScrollView>
       )}
 
-      <View style={[styles.inputBar, { backgroundColor: colors.headerBg, borderTopColor: colors.border }]}>
+      <View style={[styles.inputBar, { backgroundColor: colors.headerBg, borderTopColor: colors.border, paddingBottom: Math.max(bottomInset, 8) }]}>
         <TouchableOpacity
           onPress={() => setShowAttach((prev: boolean) => !prev)}
           style={[styles.attachBtn, { backgroundColor: colors.inputBg }]}
@@ -132,7 +130,6 @@ export const ChatInput = memo(({
             autoCapitalize="sentences"
           />
 
-          {/* زر TTS (الصوت) داخل حقل الإدخال */}
           <TouchableOpacity
             onPress={toggleSound}
             style={[styles.micBtn, voiceEnabled && { backgroundColor: '#7C3AED20' }]}
@@ -144,7 +141,6 @@ export const ChatInput = memo(({
             )}
           </TouchableOpacity>
 
-          {/* زر STT (الميكروفون) مع تأثير نبضي */}
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
             <TouchableOpacity
               onPress={onMicPress || (() => {})}
@@ -174,45 +170,47 @@ export const ChatInput = memo(({
       <Modal visible={showAttach} transparent animationType="none" onRequestClose={() => setShowAttach(false)}>
         <View style={styles.attachOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowAttach(false)} />
-          <Animated.View style={[styles.attachContainer, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', transform: [{ translateY: attachAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }]}>
+          <Animated.View style={[styles.attachContainer, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', transform: [{ translateY: attachAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }], paddingBottom: Math.max(bottomInset, 20) }]}>
             <View style={styles.attachHeader}>
               <Text style={[styles.attachTitle, { color: colors.text }]}>{lang === 'ar' ? 'إرفاق وأدوات' : 'Attach & Tools'}</Text>
               <TouchableOpacity onPress={() => setShowAttach(false)} style={styles.closeBtn}><X size={22} stroke={colors.subtext} /></TouchableOpacity>
             </View>
 
-            <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '📎 إرفاق' : '📎 Attach'}</Text>
-            <View style={styles.attachGrid}>
-              {unifiedMenu.filter(i => i.category === 'attach').map((item, idx) => (
-                <TouchableOpacity key={idx} style={[styles.attachItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
-                  <View style={[styles.attachIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={24} stroke={item.color} /></View>
-                  <Text style={[styles.attachLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🔧 أدوات' : '🔧 Tools'}</Text>
-            <View style={styles.attachGrid}>
-              {unifiedMenu.filter(i => i.category === 'tool').map((item, idx) => (
-                <TouchableOpacity key={idx} style={[styles.attachItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
-                  <View style={[styles.attachIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={24} stroke={item.color} /></View>
-                  <Text style={[styles.attachLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🚀 قدرات التوأم' : '🚀 Twin Powers'}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 4 }}>
-                {unifiedMenu.filter(i => i.category === 'feature').map((item, idx) => (
-                  <TouchableOpacity key={idx} style={[styles.featureItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
-                    <View style={[styles.featureIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={28} stroke={item.color} /></View>
-                    <Text style={[styles.featureLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
+            <ScrollView showsVerticalScrollIndicator={true} style={{ flexGrow: 0 }}>
+              <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '📎 إرفاق' : '📎 Attach'}</Text>
+              <View style={styles.attachGrid}>
+                {unifiedMenu.filter(i => i.category === 'attach').map((item, idx) => (
+                  <TouchableOpacity key={idx} style={[styles.attachItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
+                    <View style={[styles.attachIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={24} stroke={item.color} /></View>
+                    <Text style={[styles.attachLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </ScrollView>
 
-            <Text style={[styles.attachHint, { color: colors.subtext }]}>{lang === 'ar' ? 'اختر أداة أو قدرة لاستخدامها' : 'Select a tool or power to use'}</Text>
+              <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🔧 أدوات' : '🔧 Tools'}</Text>
+              <View style={styles.attachGrid}>
+                {unifiedMenu.filter(i => i.category === 'tool').map((item, idx) => (
+                  <TouchableOpacity key={idx} style={[styles.attachItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
+                    <View style={[styles.attachIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={24} stroke={item.color} /></View>
+                    <Text style={[styles.attachLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🚀 قدرات التوأم' : '🚀 Twin Powers'}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 4 }}>
+                  {unifiedMenu.filter(i => i.category === 'feature').map((item, idx) => (
+                    <TouchableOpacity key={idx} style={[styles.featureItem, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => handleToolSelect(item)}>
+                      <View style={[styles.featureIconWrap, { backgroundColor: item.color + '15' }]}><item.icon size={28} stroke={item.color} /></View>
+                      <Text style={[styles.featureLabel, { color: colors.text }]}>{lang === 'ar' ? item.label_ar : item.label_en}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <Text style={[styles.attachHint, { color: colors.subtext }]}>{lang === 'ar' ? 'اختر أداة أو قدرة لاستخدامها' : 'Select a tool or power to use'}</Text>
+            </ScrollView>
           </Animated.View>
         </View>
       </Modal>
@@ -222,7 +220,7 @@ export const ChatInput = memo(({
 
 const styles = StyleSheet.create({
   chipsRow: { paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 16, borderTopWidth: StyleSheet.hairlineWidth, gap: 8 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 8 },
   attachBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 24, borderWidth: 1, paddingHorizontal: 4, paddingVertical: 4 },
   textInput: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, maxHeight: 120, minHeight: 40, lineHeight: 22 },
@@ -230,7 +228,7 @@ const styles = StyleSheet.create({
   micActive: { backgroundColor: '#FF3B3015' },
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   attachOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  attachContainer: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '80%' },
+  attachContainer: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '80%' },
   attachHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   attachTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
   closeBtn: { padding: 4, borderRadius: 8 },

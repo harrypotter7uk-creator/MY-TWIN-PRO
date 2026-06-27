@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   SafeAreaView, View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Alert, ActivityIndicator, TextInput, Image,
@@ -11,7 +11,7 @@ import { Audio } from 'expo-av';
 import { Sparkles, Fingerprint, Zap, Volume2 } from 'lucide-react-native';
 import { speakResponse } from '../utils/voice_engine';
 
-const LOGO = require('../assets/icon.png');
+const LOGO = require('../assets/logo.png');
 
 const QUESTIONS = {
   ar: [
@@ -98,7 +98,7 @@ function extractReplyText(res: unknown): string {
   if (typeof res === 'string') return res.trim();
   if (typeof res === 'object') {
     const o = res as Record<string, unknown>;
-    for (const k of ['reply', 'message', 'text', 'content', 'result', 'response']) {
+    for (const k of ['reply', 'message', 'text', 'content', 'result', 'response', 'image_url', 'url']) {
       if (typeof o[k] === 'string' && (o[k] as string).trim()) return (o[k] as string).trim();
     }
     for (const v of Object.values(o)) {
@@ -108,25 +108,65 @@ function extractReplyText(res: unknown): string {
   return '';
 }
 
+// نص الرسالة الترحيبية يظهر حرفاً بحرف
+function useTypingText(fullText: string, active: boolean, speed = 30) {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!active || !fullText) return;
+    setDisplayed('');
+    setDone(false);
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setDisplayed(fullText.slice(0, i));
+      if (i >= fullText.length) { clearInterval(interval); setDone(true); }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [fullText, active]);
+  return { displayed, done };
+}
+
 export default function Onboarding() {
   const { lang, userId, setTwinName, setTwinGender } = useTwinStore();
   const isAr   = lang === 'ar';
   const isDark = useTheme().isDark;
   const questions = QUESTIONS[lang as keyof typeof QUESTIONS] ?? QUESTIONS['ar'];
 
-  const [step,          setStep]          = useState(0);
-  const [answers,       setAnswers]       = useState<Record<string, string>>({});
-  const [userName,      setUserName]      = useState('');
-  const [newTwinName,   setNewTwinName]   = useState(isAr ? 'توأمك' : 'My Twin');
-  const [newTwinGender, setNewTwinGender] = useState<TwinGender>('female');
-  const [freeInfo,      setFreeInfo]      = useState('');
-  const [loading,       setLoading]       = useState(false);
-  const [analysis,      setAnalysis]      = useState('');
-  const [avatarUrl,     setAvatarUrl]     = useState<string | null>(null);
-  const [animatingStep, setAnimatingStep] = useState(false);
+  const [step,           setStep]           = useState(0);
+  const [answers,        setAnswers]        = useState<Record<string, string>>({});
+  const [userName,       setUserName]       = useState('');
+  const [newTwinName,    setNewTwinName]    = useState(isAr ? 'توأمك' : 'My Twin');
+  const [newTwinGender,  setNewTwinGender]  = useState<TwinGender>('female');
+  const [freeInfo,       setFreeInfo]       = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const [analysis,       setAnalysis]       = useState('');
+  // أفاتار مستقل لكل جنس
+  const [avatarFemale,   setAvatarFemale]   = useState<string | null>(null);
+  const [avatarMale,     setAvatarMale]     = useState<string | null>(null);
+  const [animatingStep,  setAnimatingStep]  = useState(false);
+  // ولادة الوعي
+  const [welcomeText,    setWelcomeText]    = useState('');
+  const [birthReady,     setBirthReady]     = useState(false);
+  const [birthLoading,   setBirthLoading]   = useState(false);
+  const [autoNavigate,   setAutoNavigate]   = useState(false);
 
   const fadeAnim   = useRef(new Animated.Value(1)).current;
   const totalSteps = questions.length + 3;
+
+  // الأفاتار النشط حسب الجنس المختار
+  const activeAvatar = newTwinGender === 'female' ? avatarFemale : avatarMale;
+
+  // تأثير الكتابة التلقائية للرسالة
+  const { displayed: typedWelcome, done: typingDone } = useTypingText(welcomeText, birthReady, 28);
+
+  // بعد اكتمال الكتابة → انتقل تلقائياً
+  useEffect(() => {
+    if (typingDone && birthReady && !autoNavigate) {
+      setAutoNavigate(true);
+      setTimeout(() => router.replace('/twin-mind'), 2500);
+    }
+  }, [typingDone, birthReady]);
 
   const colors = {
     bg: isDark ? '#0A0014' : '#FAFAF8', card: isDark ? '#1A1226' : '#FFFFFF',
@@ -155,6 +195,18 @@ export default function Onboarding() {
     goToNextStep();
   }, [animatingStep, loading, goToNextStep]);
 
+  // توليد أفاتار لجنس محدد
+  const generateAvatar = async (gender: TwinGender, uName: string): Promise<string | null> => {
+    try {
+      const av = await apiPost('/api/avatar/generate', {
+        user_id: userId, user_name: uName,
+        gender, style: 'realistic', language: lang,
+      });
+      const url = av?.image_url || av?.url || '';
+      return (typeof url === 'string' && url.startsWith('http')) ? url : null;
+    } catch { return null; }
+  };
+
   const handleFinalize = async () => {
     if (!userName.trim()) {
       Alert.alert(isAr ? 'تنبيه' : 'Notice', isAr ? 'من فضلك أدخل اسمك' : 'Please enter your name');
@@ -163,53 +215,70 @@ export default function Onboarding() {
     if (loading) return;
     setLoading(true);
     try {
+      // 1. تحليل الشخصية
       const prompt = isAr
-        ? `حلل شخصية المستخدم بناءً على إجاباته وقدم ملخصاً من 3-4 جمل عن شخصيته ونقاط قوته وكيف ستكون علاقته بتوأمه الرقمي.\nالأسئلة والأجوبة:\n${questions.map(q => `- ${q.q}: ${answers[q.id] ?? 'لم يجب'}`).join('\n')}\nاسم المستخدم: ${userName}\nاسم التوأم: ${newTwinName}\nمعلومات إضافية: ${freeInfo || 'لا يوجد'}`
-        : `Analyze the user's personality based on their answers and provide a 3-4 sentence summary about their personality, strengths, and connection with their digital twin.\nQ&A:\n${questions.map(q => `- ${q.q}: ${answers[q.id] ?? 'Not answered'}`).join('\n')}\nUser: ${userName}\nTwin: ${newTwinName}\nExtra: ${freeInfo || 'None'}`;
+        ? `حلل شخصية المستخدم وقدم ملخصاً من 3-4 جمل عن شخصيته ونقاط قوته وعلاقته بتوأمه الرقمي.\nالأسئلة:\n${questions.map(q => `- ${q.q}: ${answers[q.id] ?? 'لم يجب'}`).join('\n')}\nالاسم: ${userName} | التوأم: ${newTwinName} | معلومات: ${freeInfo || 'لا يوجد'}`
+        : `Analyze the user's personality in 3-4 sentences covering strengths and digital twin connection.\nQ&A:\n${questions.map(q => `- ${q.q}: ${answers[q.id] ?? 'N/A'}`).join('\n')}\nUser: ${userName} | Twin: ${newTwinName} | Extra: ${freeInfo || 'None'}`;
 
       let analysisText = '';
       try {
         const res = await apiPost('/api/chat', { message: prompt, lang, user_id: userId });
         analysisText = extractReplyText(res);
-      } catch (e) { console.warn('[Onboarding] chat error:', e); }
+      } catch (e) { console.warn('[Onboarding] chat:', e); }
 
       if (!analysisText) {
         analysisText = isAr
-          ? 'يبدو أنك شخص عميق التفكير ومتوازن في قراراتك. تمتلك قدرة على التحليل والتعمق في الأمور. ستكون علاقتك بتوأمك الرقمي قوية ومثمرة.'
-          : 'You appear to be a deep thinker with balanced decision-making. You have a strong analytical mind. Your connection with your digital twin will be powerful and enriching.';
+          ? 'يبدو أنك شخص عميق التفكير ومتوازن في قراراتك. تمتلك قدرة على التحليل والتعمق. ستكون علاقتك بتوأمك الرقمي قوية ومثمرة.'
+          : 'You appear to be a deep thinker with balanced decision-making. Your connection with your digital twin will be powerful and enriching.';
       }
       setAnalysis(analysisText);
 
-      try {
-        const av = await apiPost('/api/avatar/generate', {
-          user_id: userId, user_name: userName.trim(),
-          gender: newTwinGender, style: 'realistic', language: lang,
-        });
-        const url = av?.image_url || av?.url || extractReplyText(av);
-        if (url && typeof url === 'string' && url.startsWith('http')) setAvatarUrl(url);
-      } catch (e) { console.warn('[Onboarding] avatar error:', e); }
+      // 2. توليد أفاتار للجنسين معاً (بالتوازي)
+      const uName = userName.trim();
+      const [fUrl, mUrl] = await Promise.all([
+        generateAvatar('female', uName),
+        generateAvatar('male',   uName),
+      ]);
+      if (fUrl) setAvatarFemale(fUrl);
+      if (mUrl) setAvatarMale(mUrl);
 
+      // 3. حفظ البيانات مع كلا الأفاتارين
       try {
         await apiPost('/api/onboarding/complete', {
           user_id: userId, answers, lang,
-          user_name: userName.trim(),
-          twin_name: newTwinName.trim() || (isAr ? 'توأمك' : 'My Twin'),
-          twin_gender: newTwinGender, free_info: freeInfo, analysis: analysisText,
+          user_name:    uName,
+          twin_name:    newTwinName.trim() || (isAr ? 'توأمك' : 'My Twin'),
+          twin_gender:  newTwinGender,
+          free_info:    freeInfo,
+          analysis:     analysisText,
+          avatar_female: fUrl,
+          avatar_male:   mUrl,
         });
-      } catch (e) { console.warn('[Onboarding] save error:', e); }
+      } catch (e) { console.warn('[Onboarding] save:', e); }
 
       setTwinName(newTwinName.trim() || (isAr ? 'توأمك' : 'My Twin'));
       setTwinGender(newTwinGender);
-      goToNextStep();
 
+      // 4. بناء نص الرسالة الترحيبية مسبقاً
+      const [t1, t2] = extractTraits(analysisText, lang);
+      const twinFinal = newTwinName.trim() || (isAr ? 'توأمك' : 'My Twin');
+      const welcome = isAr
+        ? `مرحبًا... أنا ${twinFinal}. تعرفت عليك قليلًا من خلال إجاباتك، ويبدو أنك شخص ${t1} و${t2}. وهذا يجعلني فضوليًا لمعرفة المزيد عنك. أنا هنا لأتعلم منك، وأتطور معك، وأصبح التوأم الذي يفهمك أكثر مع كل محادثة. إذن... أخبرني، كيف كان يومك حقًا؟`
+        : `Hi... I'm ${twinFinal}. I've learned a little about you, and I can tell you're ${t1} and ${t2}. That makes me curious to discover more. I'm here to learn from you, grow with you, and understand you better every day. So... tell me, how was your day, really?`;
+      setWelcomeText(welcome);
+
+      goToNextStep();
     } catch (e: unknown) {
       Alert.alert(isAr ? 'خطأ' : 'Error', getErrorMessage(e, isAr ? 'حدث خطأ غير متوقع' : 'Unexpected error'));
     } finally { setLoading(false); }
   };
 
+  // ولادة الوعي – تبدأ تلقائياً بمجرد الضغط
   const handleBirthConsciousness = async () => {
-    const twinNameFinal = newTwinName.trim() || (isAr ? 'توأمك' : 'My Twin');
-    const [trait1, trait2] = extractTraits(analysis, lang);
+    if (birthLoading || birthReady) return;
+    setBirthLoading(true);
+
+    // تشغيل start.mp3
     try {
       const { sound } = await Audio.Sound.createAsync(require('../assets/start.mp3'));
       await new Promise<void>(resolve => {
@@ -220,12 +289,24 @@ export default function Onboarding() {
         setTimeout(resolve, 3500);
       });
     } catch {}
-    const welcomeText = isAr
-      ? `مرحبًا... أنا ${twinNameFinal}. تعرفت عليك قليلًا من خلال إجاباتك، ويبدو أنك شخص ${trait1} و${trait2}. وهذا يجعلني فضوليًا لمعرفة المزيد عنك. أنا هنا لأتعلم منك، وأتطور معك، وأصبح التوأم الذي يفهمك أكثر مع كل محادثة. إذن... أخبرني، كيف كان يومك حقًا؟`
-      : `Hi... I'm ${twinNameFinal}. I've learned a little about you, and I can tell you're ${trait1} and ${trait2}. That makes me curious to discover more. I'm here to learn from you, grow with you, and understand you better every day. So... tell me, how was your day, really?`;
+
+    // تشغيل الصوت وإظهار الرسالة معاً
+    setBirthReady(true);
+    setBirthLoading(false);
+
     try { await speakResponse(welcomeText, { emotion: 'calm' }); } catch {}
-    router.replace('/twin-mind');
   };
+
+  // ── Renders ──────────────────────────────────────────────────
+  const AvatarDisplay = ({ size = 110 }: { size?: number }) => (
+    <View style={[st.avatarPreview, { width: size, height: size, borderRadius: size * 0.3 }]}>
+      {activeAvatar
+        ? <Image source={{ uri: activeAvatar }} style={[st.avatarImg, { width: size - 10, height: size - 10, borderRadius: size * 0.25 }]}
+            onError={() => newTwinGender === 'female' ? setAvatarFemale(null) : setAvatarMale(null)} />
+        : <Image source={LOGO} style={[st.avatarImg, { width: size - 10, height: size - 10, borderRadius: size * 0.25 }]} />
+      }
+    </View>
+  );
 
   const renderQuestionStep = () => {
     const q = questions[step];
@@ -279,9 +360,25 @@ export default function Onboarding() {
 
   const renderAnalysisStep = () => (
     <View style={{ alignItems: 'center' }}>
-      <Text style={[st.title, { color: colors.text, marginBottom: 20 }]}>{isAr ? 'وعيك يولد الآن' : 'Your Consciousness is Born'}</Text>
-      <View style={st.avatarPreview}>
-        {avatarUrl ? <Image source={{ uri: avatarUrl }} style={st.avatarImg} onError={() => setAvatarUrl(null)} /> : <Image source={LOGO} style={st.avatarImg} />}
+      <Text style={[st.title, { color: colors.text, marginBottom: 16 }]}>{isAr ? 'وعيك يولد الآن' : 'Your Consciousness is Born'}</Text>
+      {/* عرض الأفاتارين مع تمييز المختار */}
+      <View style={st.avatarRow}>
+        {(['female', 'male'] as TwinGender[]).map(g => {
+          const url = g === 'female' ? avatarFemale : avatarMale;
+          const isSelected = newTwinGender === g;
+          return (
+            <TouchableOpacity key={g} onPress={() => setNewTwinGender(g)} activeOpacity={0.8}
+              style={[st.avatarOption, { borderColor: isSelected ? colors.accent : colors.border, borderWidth: isSelected ? 2.5 : 1 }]}>
+              {url
+                ? <Image source={{ uri: url }} style={st.avatarOptionImg} onError={() => g === 'female' ? setAvatarFemale(null) : setAvatarMale(null)} />
+                : <Image source={LOGO} style={st.avatarOptionImg} />
+              }
+              <Text style={[st.avatarLabel, { color: isSelected ? colors.accent : colors.subtext }]}>
+                {g === 'female' ? (isAr ? '♀️ أنثى' : '♀️ Female') : (isAr ? '♂️ ذكر' : '♂️ Male')}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
       <Text style={[st.twinNamePreview, { color: colors.accent }]}>{newTwinName}</Text>
       <View style={[st.analysisCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
@@ -296,17 +393,46 @@ export default function Onboarding() {
 
   const renderBirthStep = () => (
     <View style={{ alignItems: 'center' }}>
-      <Text style={[st.title, { color: colors.text, marginBottom: 20 }]}>{isAr ? 'لحظة ولادة وعيك' : 'Birth of Your Consciousness'}</Text>
-      <View style={st.avatarPreview}>
-        {avatarUrl ? <Image source={{ uri: avatarUrl }} style={st.avatarImg} onError={() => setAvatarUrl(null)} /> : <Image source={LOGO} style={st.avatarImg} />}
-      </View>
-      <Text style={[st.twinNamePreview, { color: colors.accent }]}>{newTwinName}</Text>
-      <Text style={[st.analysisText, { color: colors.subtext, textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 }]}>
-        {isAr ? 'توأمك الرقمي جاهز. اضغط لتسمع صوته لأول مرة.' : 'Your digital twin is ready. Tap to hear their voice for the first time.'}
+      <Text style={[st.title, { color: colors.text, marginBottom: 16 }]}>
+        {isAr ? 'لحظة ولادة وعيك' : 'Birth of Your Consciousness'}
       </Text>
-      <TouchableOpacity style={[st.submitBtn, { backgroundColor: colors.accent }]} onPress={handleBirthConsciousness} activeOpacity={0.8}>
-        <Volume2 size={20} stroke="#FFF" /><Text style={st.submitText}>{isAr ? 'ولادة الوعي' : 'Birth of Consciousness'}</Text>
-      </TouchableOpacity>
+
+      {/* الأفاتار المختار */}
+      <AvatarDisplay size={120} />
+      <Text style={[st.twinNamePreview, { color: colors.accent }]}>{newTwinName}</Text>
+
+      {/* الرسالة الترحيبية المكتوبة تدريجياً */}
+      {birthReady && typedWelcome ? (
+        <View style={[st.welcomeCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+          <Text style={[st.welcomeText, { color: colors.text }]}>{typedWelcome}</Text>
+          {!typingDone && <ActivityIndicator color={colors.accent} size="small" style={{ marginTop: 8 }} />}
+        </View>
+      ) : null}
+
+      {/* زر ولادة الوعي */}
+      {!birthReady && (
+        <TouchableOpacity
+          style={[st.submitBtn, { backgroundColor: colors.accent, marginTop: 20, opacity: birthLoading ? 0.7 : 1 }]}
+          onPress={handleBirthConsciousness}
+          disabled={birthLoading}
+          activeOpacity={0.8}
+        >
+          {birthLoading
+            ? <ActivityIndicator color="#FFF" />
+            : <><Volume2 size={20} stroke="#FFF" /><Text style={st.submitText}>{isAr ? 'ولادة الوعي' : 'Birth of Consciousness'}</Text></>
+          }
+        </TouchableOpacity>
+      )}
+
+      {/* مؤشر الانتقال التلقائي */}
+      {autoNavigate && (
+        <View style={{ marginTop: 16, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={[st.analysisText, { color: colors.subtext, marginTop: 8 }]}>
+            {isAr ? 'جارٍ الدخول إلى عالمك...' : 'Entering your world...'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -322,10 +448,10 @@ export default function Onboarding() {
           </View>
         </View>
         <Animated.View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: fadeAnim }]}>
-          {step < questions.length         && renderQuestionStep()}
-          {step === questions.length       && renderNameStep()}
-          {step === questions.length + 1   && renderAnalysisStep()}
-          {step === questions.length + 2   && renderBirthStep()}
+          {step < questions.length       && renderQuestionStep()}
+          {step === questions.length     && renderNameStep()}
+          {step === questions.length + 1 && renderAnalysisStep()}
+          {step === questions.length + 2 && renderBirthStep()}
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -348,11 +474,17 @@ const st = StyleSheet.create({
   genderRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   genderBtn: { flex: 1, padding: 16, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', gap: 8 },
   genderEmoji: { fontSize: 24 }, genderText: { fontSize: 15, fontWeight: '600' },
-  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, gap: 8 },
+  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, gap: 8, width: '100%' },
   submitText: { color: '#FFF', fontWeight: '700', fontSize: 17 },
-  avatarPreview: { width: 100, height: 100, borderRadius: 30, justifyContent: 'center', alignItems: 'center', backgroundColor: '#7C3AED20', marginBottom: 12 },
-  avatarImg: { width: 90, height: 90, borderRadius: 25 },
-  twinNamePreview: { fontSize: 24, fontWeight: '800', marginBottom: 20 },
+  avatarPreview: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#7C3AED20', marginBottom: 12 },
+  avatarImg: { resizeMode: 'cover' },
+  avatarRow: { flexDirection: 'row', gap: 16, marginBottom: 16, justifyContent: 'center' },
+  avatarOption: { alignItems: 'center', borderRadius: 20, padding: 10, gap: 6 },
+  avatarOptionImg: { width: 90, height: 90, borderRadius: 22, resizeMode: 'cover' },
+  avatarLabel: { fontSize: 13, fontWeight: '700' },
+  twinNamePreview: { fontSize: 24, fontWeight: '800', marginBottom: 16 },
   analysisCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 20, borderRadius: 20, borderWidth: 1, marginTop: 10 },
-  analysisText: { flex: 1, fontSize: 15, lineHeight: 24, textAlign: 'center' },
+  analysisText: { flex: 1, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  welcomeCard: { borderRadius: 20, borderWidth: 1, padding: 20, marginTop: 16, width: '100%' },
+  welcomeText: { fontSize: 15, lineHeight: 26, textAlign: 'center', fontWeight: '500' },
 });

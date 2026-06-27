@@ -7,7 +7,6 @@ import {
 import { router } from 'expo-router';
 import { useTwinStore } from '../store/useTwinStore';
 import { apiPost } from '../lib/httpClient';
-import { Audio } from 'expo-av';
 import {
   Mail, Lock, Eye, EyeOff, LogIn, UserPlus, Globe,
 } from 'lucide-react-native';
@@ -25,33 +24,12 @@ export default function Login() {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.8)).current;
-  const particle1 = useRef(new Animated.Value(0)).current;
-  const particle2 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(particle1, { toValue: 1, duration: 3000, useNativeDriver: true }),
-          Animated.timing(particle1, { toValue: 0, duration: 3000, useNativeDriver: true }),
-        ])
-      ),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(particle2, { toValue: 1, duration: 4000, useNativeDriver: true }),
-          Animated.timing(particle2, { toValue: 0, duration: 4000, useNativeDriver: true }),
-        ])
-      ),
     ]).start();
-
-    // 🛡️ صوت بداية آمن
-    try {
-      Audio.Sound.createAsync(require('../assets/start.mp3')).then(({ sound }) => {
-        sound.playAsync().catch(() => {});
-      }).catch(() => {});
-    } catch (e) {}
   }, []);
 
   const toggleLanguage = () => {
@@ -106,14 +84,14 @@ export default function Login() {
   };
 
   const colors = {
-    bg: '#0A0014',
-    card: '#1A1226',
-    text: '#FFFFFF',
-    subtext: '#A78BFA',
+    bg: '#FAFAF8',        // خلفية بيضاء مثل Onboarding
+    card: '#FFFFFF',
+    text: '#2D2D2D',
+    subtext: '#7C6B99',
     accent: '#7C3AED',
-    accentLight: '#7C3AED20',
-    border: '#2D1B4D',
-    inputBg: '#161122',
+    accentLight: '#7C3AED15',
+    border: '#E8E8E3',
+    inputBg: '#FDFDF9',
     glow: '#A855F7',
   };
 
@@ -126,20 +104,6 @@ export default function Login() {
           {isAr ? 'English' : 'العربية'}
         </Text>
       </TouchableOpacity>
-
-      {/* جسيمات خلفية */}
-      <Animated.View style={[st.particle, {
-        top: '20%', left: '10%',
-        opacity: particle1.interpolate({ inputRange: [0,1], outputRange: [0.1, 0.3] }),
-        transform: [{ translateY: particle1.interpolate({ inputRange: [0,1], outputRange: [-20, 20] }) }],
-        backgroundColor: colors.glow,
-      }]} />
-      <Animated.View style={[st.particle, {
-        top: '60%', right: '15%',
-        opacity: particle2.interpolate({ inputRange: [0,1], outputRange: [0.1, 0.25] }),
-        transform: [{ translateX: particle2.interpolate({ inputRange: [0,1], outputRange: [-30, 30] }) }],
-        backgroundColor: colors.accent,
-      }]} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={st.container}>
@@ -223,15 +187,15 @@ const st = StyleSheet.create({
   langBtn: {
     position: 'absolute', top: 50, right: 20,
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    padding: 8, borderRadius: 20, backgroundColor: '#7C3AED20', zIndex: 10,
+    padding: 8, borderRadius: 20, backgroundColor: '#7C3AED15', zIndex: 10,
   },
   langText: { fontWeight: '600', fontSize: 14 },
   logoContainer: { alignItems: 'center', marginBottom: 20 },
   logoGlow: {
     shadowColor: '#A855F7', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9, shadowRadius: 30, elevation: 25,
+    shadowOpacity: 0.4, shadowRadius: 20, elevation: 10,
   },
-  logo: { width: 140, height: 140, borderRadius: 34 },
+  logo: { width: 130, height: 130, borderRadius: 34 },
   heading: { fontSize: 38, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
   tagline: { fontSize: 15, textAlign: 'center', marginBottom: 28, lineHeight: 22, paddingHorizontal: 20 },
   inputWrap: {
@@ -249,5 +213,4 @@ const st = StyleSheet.create({
     padding: 16, borderRadius: 16, borderWidth: 1.5, gap: 8, marginBottom: 16,
   },
   outlineBtnText: { fontWeight: '700', fontSize: 17 },
-  particle: { position: 'absolute', width: 120, height: 120, borderRadius: 60, opacity: 0.2 },
 });
