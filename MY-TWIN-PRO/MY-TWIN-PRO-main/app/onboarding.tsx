@@ -129,7 +129,7 @@ async function playSound(path: any, maxMs = 4000): Promise<void> {
 }
 
 // ============================================================
-// NEURON NETWORK – خلايا عصبية متصلة (بدون جسيمات/نجوم)
+// NEURON NETWORK – خلايا عصبية متصلة (متوافقة مع Native Driver)
 // ============================================================
 const NeuronNetwork = ({ isDark }: { isDark: boolean }) => {
   const neurons = useRef(
@@ -196,33 +196,27 @@ const NeuronNetwork = ({ isDark }: { isDark: boolean }) => {
 };
 
 // ============================================================
-// CONSCIOUSNESS PROGRESS – شريط تقدم يعكس تطور الوعي
+// CONSCIOUSNESS PROGRESS – شريط تقدم يعكس تطور الوعي (Native Driver)
 // ============================================================
 const ConsciousnessProgress = ({ step, total, isDark }: { step: number; total: number; isDark: boolean }) => {
-  const barAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
   const progress = step / Math.max(total - 1, 1);
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(barAnim, { toValue: progress, duration: 500, useNativeDriver: false }),
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }),
-      ]),
+    Animated.sequence([
+      Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }),
     ]).start();
   }, [step]);
 
-  const barColor = barAnim.interpolate({
-    inputRange: [0, 0.3, 0.6, 1],
-    outputRange: ['#7C3AED', '#8B5CF6', '#A855F7', '#C084FC'],
-  });
+  const colors = ['#7C3AED', '#8B5CF6', '#A855F7', '#C084FC'];
+  const currentColor = colors[Math.min(step, colors.length - 1)];
 
   return (
     <View style={cprStyles.wrapper}>
       <View style={[cprStyles.track, { backgroundColor: isDark ? '#2D1B4D' : '#E8E8E3' }]}>
-        <Animated.View style={[cprStyles.fill, { width: barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }), backgroundColor: barColor }]} />
-        <Animated.View style={[cprStyles.glow, { opacity: glowAnim, backgroundColor: barColor }]} />
+        <View style={[cprStyles.fill, { width: `${progress * 100}%`, backgroundColor: currentColor }]} />
+        <Animated.View style={[cprStyles.glow, { opacity: glowAnim, backgroundColor: currentColor }]} />
       </View>
       <Text style={[cprStyles.label, { color: isDark ? '#A78BFA' : '#7C6B99' }]}>
         {step + 1}/{total} {step < total - 2 ? 'تكوين الوعي' : step < total - 1 ? 'اكتمال الوعي' : 'ولادة الوعي'}
@@ -562,13 +556,9 @@ export default function Onboarding() {
     <SafeAreaView style={[st.safe, { backgroundColor: colors.bg }]}>
       <SafeAreaView style={{ backgroundColor: colors.bg }} />
       <ScrollView ref={scrollRef} contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* ✅ شبكة الخلايا العصبية */}
         <NeuronNetwork isDark={isDark} />
-        
         <View style={{ zIndex: 10 }}>
-          {/* ✅ شريط تقدم الوعي */}
           <ConsciousnessProgress step={step} total={totalSteps} isDark={isDark} />
-
           <Animated.View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: fadeAnim }]}>
             {step < questions.length       && renderQuestionStep()}
             {step === questions.length     && renderNameStep()}

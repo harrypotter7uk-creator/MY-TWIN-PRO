@@ -19,7 +19,6 @@ import {
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-// الترجمات
 const T = {
   ar: {
     museumTitle: 'متحف توأمك',
@@ -262,7 +261,6 @@ export default function TwinMuseum() {
 
       <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* بطاقة الأفاتار – ثابتة */}
           <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={st.avatarGlow}>
               {avatarUrl ? <Image source={{ uri: avatarUrl }} style={st.avatarImg} /> : <Sparkles size={60} stroke={colors.accent} />}
@@ -273,7 +271,7 @@ export default function TwinMuseum() {
               <Text style={[st.emotionText, { color: emotionColor }]}>{emotionInfo}</Text>
             </View>
           </View>
-          {/* === تبويب المتحف === */}
+
           {activeTab === 'museum' && (
             <>
               <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -316,7 +314,7 @@ export default function TwinMuseum() {
               </View>
             </>
           )}
-          {/* === تبويب التخصيص === */}
+
           {activeTab === 'customize' && (
             <>
               <View style={[st.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -402,7 +400,6 @@ export default function TwinMuseum() {
     </View>
   );
 }
-
 const st = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5 },

@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Modal, Animated, ActivityIndicator, ScrollView,
 } from 'react-native';
+import { router } from 'expo-router';
 import {
   Send, X, Camera, Image as ImageIcon, FileText,
   Search, Cloud, Music, Film, TrendingUp,
@@ -20,6 +21,16 @@ interface ToolItem {
   category: 'attach' | 'tool' | 'feature';
   onPress?: () => void;
 }
+
+const FEATURE_ROUTES: Record<string, string> = {
+  study: '/features/study-mode',
+  code: '/features/code-lab',
+  business: '/features/business-analyzer',
+  coach: '/features/life-coach',
+  dream: '/features/dreams',
+  content: '/features/content-creator',
+  smart_home: '/features/smart-home',
+};
 
 export const ChatInput = memo(({
   input, setInput, loading, isRTL, isDark, colors, lang,
@@ -77,8 +88,13 @@ export const ChatInput = memo(({
         icon: item.icon,
         color: item.color,
       });
-    } else if (item.category === 'feature' && onFeatureSelect) {
-      onFeatureSelect(item.id);
+    } else if (item.category === 'feature') {
+      const route = FEATURE_ROUTES[item.id];
+      if (route) {
+        router.push(route as any);
+      } else if (onFeatureSelect) {
+        onFeatureSelect(item.id);
+      }
     }
   };
 
