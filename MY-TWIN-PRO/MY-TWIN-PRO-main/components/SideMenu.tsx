@@ -15,7 +15,7 @@ import {
   BatteryLow, ChevronRight, Zap, Crown, Star, X,
   GraduationCap, Code2, TrendingUp, Image as ImageIcon, Moon,
   PenLine, Home as HomeIcon, CheckSquare, FolderOpen,
-  Eye, Bell, TrendingUp as TrendingUpIcon,
+  Eye, Bell, TrendingUp as TrendingUpIcon, BookOpen,
 } from 'lucide-react-native';
 
 let Haptics: any = null;
@@ -261,6 +261,7 @@ export default function SideMenu({ onClose }: { onClose: () => void }) {
           <View style={styles.sectionContent}>
             <MenuItem icon={Home} label={t('مركز الوعي', 'Mind Center')} route="/twin-mind" c={c} navigate={navigate} />
             <MenuItem icon={MessageCircle} label={t('وعي التوأم', 'Twin Mind')} route="/chat" c={c} navigate={navigate} />
+            <MenuItem icon={BookOpen} label={t('قصصنا معاً', 'Our Stories')} route="/stories" c={c} navigate={navigate} />
             <MenuItem icon={FolderOpen} label={t('مشاريع الوعي', 'Mind Projects')} route="/history" c={c} navigate={navigate} />
             <MenuItem icon={Brain} label={t('معرض الذكريات', 'Memory Gallery')} route="/memories" c={c} navigate={navigate} />
             <MenuItem icon={Heart} label={t('حديقة الرابطة', 'Bond Garden')} route="/relationship" c={c} navigate={navigate} />
@@ -270,6 +271,7 @@ export default function SideMenu({ onClose }: { onClose: () => void }) {
         <SectionHeader label={t('🚀 قدرات التوأم', '🚀 Twin Powers')} sectionKey="powers" expanded={expandedSections.powers} onPress={() => toggleSection('powers')} c={c} />
         {expandedSections.powers && (
           <View style={styles.sectionContent}>
+            <MenuItem icon={Zap} label={t('عالم القدرات', 'Power Universe')} route="/features/index" c={c} navigate={navigate} />
             <MenuItem icon={GraduationCap} label={t('المذاكرة الذكية', 'Smart Study')} route="/features/study-mode" c={c} navigate={navigate} />
             <MenuItem icon={Code2} label={t('مختبر البرمجة', 'Code Lab')} route="/features/code-lab" c={c} navigate={navigate} />
             <MenuItem icon={TrendingUp} label={t('تحليل الأعمال', 'Business Analyzer')} route="/features/business-analyzer" c={c} navigate={navigate} />

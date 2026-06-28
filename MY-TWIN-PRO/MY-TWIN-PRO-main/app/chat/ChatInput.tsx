@@ -82,16 +82,11 @@ export const ChatInput = memo(({
     if (item.category === 'attach' && item.onPress) {
       item.onPress();
     } else if (item.category === 'tool' && onAddTool) {
-      onAddTool({
-        type: item.id,
-        label: lang === 'ar' ? item.label_ar : item.label_en,
-        icon: item.icon,
-        color: item.color,
-      });
+      onAddTool({ type: item.id, label: lang === 'ar' ? item.label_ar : item.label_en, icon: item.icon, color: item.color });
     } else if (item.category === 'feature') {
       const route = FEATURE_ROUTES[item.id];
       if (route) {
-        router.push(route as any);
+        try { router.push(route as any); } catch (e) {}
       } else if (onFeatureSelect) {
         onFeatureSelect(item.id);
       }
@@ -105,41 +100,22 @@ export const ChatInput = memo(({
   return (
     <>
       {activeTools && activeTools.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={[styles.chipsRow, { backgroundColor: colors.headerBg }]}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chipsRow, { backgroundColor: colors.headerBg }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {activeTools.map((tool: any) => (
-            <ToolChip
-              key={tool.id}
-              label={tool.label}
-              icon={tool.icon}
-              color={tool.color}
-              onClose={() => onRemoveTool && onRemoveTool(tool.id)}
-            />
+            <ToolChip key={tool.id} label={tool.label} icon={tool.icon} color={tool.color} onClose={() => onRemoveTool && onRemoveTool(tool.id)} />
           ))}
         </ScrollView>
       )}
 
       <View style={[styles.inputBar, { backgroundColor: colors.headerBg, borderTopColor: colors.border, paddingBottom: Math.max(bottomInset, 8) }]}>
-        <TouchableOpacity
-          onPress={() => setShowAttach((prev: boolean) => !prev)}
-          style={[styles.attachBtn, { backgroundColor: colors.inputBg }]}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity onPress={() => setShowAttach((prev: boolean) => !prev)} style={[styles.attachBtn, { backgroundColor: colors.inputBg }]} activeOpacity={0.7}>
           <Text style={{ fontSize: 20, color: colors.subtext, fontWeight: '300' }}>+</Text>
         </TouchableOpacity>
 
         <View style={[styles.inputWrap, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
           <TextInput
             ref={inputRef}
-            style={[
-              styles.textInput,
-              isRTL && { textAlign: 'right' },
-              { color: colors.text, height: Math.max(40, Math.min(inputHeight, 120)) },
-            ]}
+            style={[styles.textInput, isRTL && { textAlign: 'right' }, { color: colors.text, height: Math.max(40, Math.min(inputHeight, 120)) }]}
             value={input}
             onChangeText={setInput}
             placeholder={lang === 'ar' ? 'اكتب رسالتك... 💬' : 'Type a message... 💬'}
@@ -151,52 +127,20 @@ export const ChatInput = memo(({
             returnKeyType="default"
             autoCorrect={false}
             autoCapitalize="sentences"
-            onContentSizeChange={(e) => {
-              setInputHeight(e.nativeEvent.contentSize.height);
-            }}
+            onContentSizeChange={(e) => { setInputHeight(e.nativeEvent.contentSize.height); }}
           />
-
-          <TouchableOpacity
-            onPress={toggleSound}
-            style={[styles.micBtn, voiceEnabled && { backgroundColor: '#7C3AED20' }]}
-          >
-            {voiceEnabled ? (
-              <Volume2 size={18} stroke="#7C3AED" />
-            ) : (
-              <VolumeX size={18} stroke={colors.subtext} />
-            )}
+          <TouchableOpacity onPress={toggleSound} style={[styles.micBtn, voiceEnabled && { backgroundColor: '#7C3AED20' }]}>
+            {voiceEnabled ? <Volume2 size={18} stroke="#7C3AED" /> : <VolumeX size={18} stroke={colors.subtext} />}
           </TouchableOpacity>
-
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <TouchableOpacity
-              onPress={onMicPress || (() => {})}
-              style={[styles.micBtn, isRecording && styles.micActive]}
-            >
-              {isRecording ? (
-                <MicOff size={18} stroke="#FF3B30" />
-              ) : (
-                <Mic size={18} stroke={colors.subtext} />
-              )}
+            <TouchableOpacity onPress={onMicPress || (() => {})} style={[styles.micBtn, isRecording && styles.micActive]}>
+              {isRecording ? <MicOff size={18} stroke="#FF3B30" /> : <Mic size={18} stroke={colors.subtext} />}
             </TouchableOpacity>
           </Animated.View>
         </View>
 
-        <TouchableOpacity
-          onPress={() => onSend && onSend()}
-          disabled={loading || !hasContent}
-          style={[
-            styles.sendBtn,
-            {
-              backgroundColor: hasContent && !loading ? sendActiveColor : sendInactiveColor,
-              opacity: hasContent && !loading ? 1 : 0.5,
-            },
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Send size={20} stroke="#FFF" />
-          )}
+        <TouchableOpacity onPress={() => onSend && onSend()} disabled={loading || !hasContent} style={[styles.sendBtn, { backgroundColor: hasContent && !loading ? sendActiveColor : sendInactiveColor, opacity: hasContent && !loading ? 1 : 0.5 }]}>
+          {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Send size={20} stroke="#FFF" />}
         </TouchableOpacity>
       </View>
 
@@ -208,7 +152,6 @@ export const ChatInput = memo(({
               <Text style={[styles.attachTitle, { color: colors.text }]}>{lang === 'ar' ? 'إرفاق وأدوات' : 'Attach & Tools'}</Text>
               <TouchableOpacity onPress={() => setShowAttach(false)} style={styles.closeBtn}><X size={22} stroke={colors.subtext} /></TouchableOpacity>
             </View>
-
             <ScrollView showsVerticalScrollIndicator={true} style={{ flexGrow: 0 }}>
               <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '📎 إرفاق' : '📎 Attach'}</Text>
               <View style={styles.attachGrid}>
@@ -219,7 +162,6 @@ export const ChatInput = memo(({
                   </TouchableOpacity>
                 ))}
               </View>
-
               <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🔧 أدوات' : '🔧 Tools'}</Text>
               <View style={styles.attachGrid}>
                 {unifiedMenu.filter(i => i.category === 'tool').map((item, idx) => (
@@ -229,7 +171,6 @@ export const ChatInput = memo(({
                   </TouchableOpacity>
                 ))}
               </View>
-
               <Text style={[styles.categoryLabel, { color: colors.subtext }]}>{lang === 'ar' ? '🚀 قدرات التوأم' : '🚀 Twin Powers'}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 4 }}>
@@ -241,8 +182,6 @@ export const ChatInput = memo(({
                   ))}
                 </View>
               </ScrollView>
-
-              <Text style={[styles.attachHint, { color: colors.subtext }]}>{lang === 'ar' ? 'اختر أداة أو قدرة لاستخدامها' : 'Select a tool or power to use'}</Text>
             </ScrollView>
           </Animated.View>
         </View>
@@ -273,5 +212,4 @@ const styles = StyleSheet.create({
   featureItem: { alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, gap: 8, width: 90 },
   featureIconWrap: { width: 50, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   featureLabel: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  attachHint: { textAlign: 'center', fontSize: 12, marginTop: 8, fontWeight: '500' },
 });

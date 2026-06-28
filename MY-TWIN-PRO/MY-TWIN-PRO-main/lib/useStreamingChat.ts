@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { streamChat } from './httpClient';
+import { apiPost } from './httpClient';
 import { useTwinStore } from '../store/useTwinStore';
 
 interface StreamingState {
@@ -54,28 +54,33 @@ export function useStreamingChat() {
       try {
         const store = useTwinStore.getState();
 
-        // مرحلة استرجاع الذاكرة
+        // محاكاة مرحلة استرجاع الذاكرة
         await new Promise(resolve => setTimeout(resolve, 300));
         setThinkingStage('generating');
 
-        const fullText = await streamChat(
+        // استخدام apiPost العادي بدلاً من streamChat
+        const response = await apiPost('/api/chat', {
           message,
-          store.chatHistory.slice(-10).map((h) => ({
+          history: store.chatHistory.slice(-10).map((h) => ({
             role: h.role,
             content: h.content,
           })),
-          store.lang,
-          (chunk: string) => {
-            accumulatedText += chunk;
-            setStreamingText(accumulatedText);
-          },
-          controller.signal
-        );
+          lang: store.lang,
+        });
+
+        const fullText = response?.reply || '';
+
+        // محاكاة تأثير البث عبر تحديث النص تدريجياً
+        for (let i = 0; i < fullText.length; i += 3) {
+          accumulatedText = fullText.substring(0, i + 3);
+          setStreamingText(accumulatedText);
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
 
         useTwinStore.setState((s) => ({
           chatHistory: s.chatHistory.map((msg) =>
             msg.id === twinMsgId
-              ? { ...msg, content: fullText, thinkingStage: 'complete', provider: 'orchestrator' }
+              ? { ...msg, content: fullText, thinkingStage: 'complete', provider: response?.provider || 'orchestrator' }
               : msg
           ),
         }));

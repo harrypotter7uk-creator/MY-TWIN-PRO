@@ -40,19 +40,6 @@ const emotionEmoji: Record<string, string> = {
   surprise: '😮', neutral: '😌', caring: '🤝', supportive: '💪',
 };
 
-const providerLabels: Record<string, { ar: string; en: string; icon: any }> = {
-  multi_ai: { ar: 'ذكاء متعدد', en: 'Multi AI', icon: Sparkles },
-  orchestrator: { ar: 'المنسق', en: 'Orchestrator', icon: Brain },
-  internal_mytwin: { ar: 'نموذج خاص', en: 'MyTwin', icon: Shield },
-  gemini: { ar: 'Gemini', en: 'Gemini', icon: Sparkles },
-  groq: { ar: 'Groq', en: 'Groq', icon: Cpu },
-  openrouter: { ar: 'OpenRouter', en: 'OpenRouter', icon: Zap },
-  huggingface: { ar: 'HuggingFace', en: 'HuggingFace', icon: Brain },
-  tool: { ar: 'أداة', en: 'Tool', icon: Zap },
-  error: { ar: 'خطأ', en: 'Error', icon: X },
-  fallback: { ar: 'احتياطي', en: 'Fallback', icon: X },
-};
-
 export const MarkdownRenderer = memo(({ content, isDark }: { content: string; isDark: boolean }) => {
   const c = isDark ? COLORS.dark : COLORS.light;
   const styles = useMemo(() => ({
@@ -88,7 +75,7 @@ export const UserBubble = memo(({ item, isDark }: any) => {
   );
 });
 
-export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, onRegenerate, onLike, onDislike, provider, lang, twinName }: any) => {
+export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, onRegenerate, onLike, onDislike, lang, twinName }: any) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
@@ -98,35 +85,19 @@ export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, 
   const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const emotion = item.emotion || 'neutral';
   const emoji = emotionEmoji[emotion] || '😌';
-
-  let emotionColor = c.accent;
-  try {
-    emotionColor = getEmotionColor(emotion, {
-      emotionJoy: '#F59E0B', emotionSad: '#60A5FA', emotionFear: '#A78BFA',
-      emotionLove: '#EC4899', emotionAnger: '#FF6B6B', emotionNeutral: c.subtext,
-    } as any);
-  } catch {}
-
-  const prov = providerLabels[provider || 'orchestrator'] || providerLabels.orchestrator;
-  const ProvIcon = prov.icon;
+  const isLiked = item.liked === true;
+  const isDisliked = item.disliked === true;
 
   return (
     <Animated.View style={[styles.twinRow, { opacity: fadeAnim }]}>
       <View style={styles.twinAvatarContainer}>
         <Image source={APP_LOGO} style={styles.twinAvatar} />
         <Text style={[styles.twinName, { color: c.text }]}>{twinName || 'MyTwin'}</Text>
+        {item.emotion && <Text style={styles.emotionEmoji}>{emoji}</Text>}
+        <Text style={[styles.timestamp, { color: c.subtext }]}>{time}</Text>
       </View>
 
       <View style={[styles.twinCard, { backgroundColor: c.twinBg, borderColor: c.border }]}>
-        <View style={[styles.twinMeta, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View style={[styles.providerBadge, { backgroundColor: c.codeBg, borderLeftColor: emotionColor, borderLeftWidth: 2 }]}>
-            <ProvIcon size={10} stroke={emotionColor} />
-            <Text style={[styles.providerText, { color: c.subtext }]}>{lang === 'ar' ? prov.ar : prov.en}</Text>
-          </View>
-          {item.emotion && <Text style={styles.emotionEmoji}>{emoji}</Text>}
-          <Text style={[styles.timestamp, { color: c.subtext }]}>{time}</Text>
-        </View>
-
         <View style={styles.twinContent}>
           <MarkdownRenderer content={item.content} isDark={isDark} />
         </View>
@@ -143,11 +114,11 @@ export const TwinBubble = memo(({ item, isDark, isRTL, isLast, onCopy, onRetry, 
               <RotateCcw size={15} stroke={c.subtext} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => onLike(item)} style={styles.actionBtn}>
-            <ThumbsUp size={15} stroke={c.subtext} />
+          <TouchableOpacity onPress={() => onLike(item)} style={[styles.actionBtn, isLiked && { backgroundColor: c.likeActive + '20' }]}>
+            <ThumbsUp size={15} stroke={isLiked ? c.likeActive : c.subtext} fill={isLiked ? c.likeActive : 'none'} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => onDislike(item)} style={styles.actionBtn}>
-            <ThumbsDown size={15} stroke={c.subtext} />
+          <TouchableOpacity onPress={() => onDislike(item)} style={[styles.actionBtn, isDisliked && { backgroundColor: c.dislikeActive + '20' }]}>
+            <ThumbsDown size={15} stroke={isDisliked ? c.dislikeActive : c.subtext} fill={isDisliked ? c.dislikeActive : 'none'} />
           </TouchableOpacity>
         </View>
 
@@ -176,13 +147,10 @@ const styles = StyleSheet.create({
   userText: { fontSize: 16, lineHeight: 24 },
   userTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
   twinRow: { marginBottom: 24, paddingHorizontal: 12 },
-  twinAvatarContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 },
+  twinAvatarContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10, flexWrap: 'wrap' },
   twinAvatar: { width: 36, height: 36, borderRadius: 18 },
   twinName: { fontSize: 14, fontWeight: '700' },
   twinCard: { borderRadius: 20, borderWidth: 0.5, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  twinMeta: { alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
-  providerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  providerText: { fontSize: 10, fontWeight: '600' },
   emotionEmoji: { fontSize: 14 },
   timestamp: { fontSize: 11 },
   twinContent: { marginBottom: 12 },

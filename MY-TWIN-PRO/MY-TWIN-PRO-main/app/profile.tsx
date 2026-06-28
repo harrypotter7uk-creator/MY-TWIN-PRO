@@ -12,21 +12,19 @@ import {
   ArrowLeft, User, Mail, Shield, Star, Zap, TrendingUp,
   Brain, Heart, Activity, Clock, Award, Settings, Crown,
   LogOut, ChevronRight, Sparkles, Fingerprint, Eye,
-  MessageSquare, Target, Lightbulb,
+  MessageSquare, Target, Lightbulb, Smile, BookOpen,
 } from 'lucide-react-native';
-
-const { width: SCREEN_W } = Dimensions.get('window');
 
 const T = {
   ar: {
     title: 'حسابي',
     loading: 'جاري تحميل بياناتك...',
-    identity: 'هويتك',
-    stats: 'إحصائيات',
-    insights: 'استنتاجات عنك',
+    identity: 'هويتك الرقمية',
+    stats: 'إحصائيات الكيان',
+    insights: 'ما يراه توأمك فيك',
     account: 'الحساب',
     settings: 'الإعدادات',
-    subscription: 'الاشتراك',
+    subscription: 'باقات الوعي',
     privacy: 'الخصوصية',
     about: 'حول التطبيق',
     logout: 'تسجيل الخروج',
@@ -35,18 +33,21 @@ const T = {
     bond: 'رابطة',
     phase: 'مرحلة',
     points: 'نقطة',
+    mood: 'مزاج التوأم',
+    health: 'صحة العلاقة',
+    stories: 'قصصنا',
     noInsights: 'تحدث مع توأمك أكثر لتظهر استنتاجات عن شخصيتك',
     phaseLabels: { introduction: 'تعارف', trust_building: 'بناء ثقة', deepening: 'تعمق', growth: 'نمو', mature: 'نضج' } as Record<string, string>,
   },
   en: {
     title: 'My Profile',
     loading: 'Loading your data...',
-    identity: 'Your Identity',
-    stats: 'Statistics',
-    insights: 'Insights About You',
+    identity: 'Your Digital Identity',
+    stats: 'Entity Statistics',
+    insights: 'What Your Twin Sees in You',
     account: 'Account',
     settings: 'Settings',
-    subscription: 'Subscription',
+    subscription: 'Consciousness Plans',
     privacy: 'Privacy',
     about: 'About',
     logout: 'Sign Out',
@@ -55,6 +56,9 @@ const T = {
     bond: 'Bond',
     phase: 'Phase',
     points: 'Points',
+    mood: 'Twin Mood',
+    health: 'Relationship Health',
+    stories: 'Our Stories',
     noInsights: 'Talk to your Twin more to reveal insights about your personality',
     phaseLabels: { introduction: 'Introduction', trust_building: 'Trust Building', deepening: 'Deepening', growth: 'Growth', mature: 'Mature' } as Record<string, string>,
   },
@@ -77,16 +81,15 @@ export default function Profile() {
   const [identity, setIdentity] = useState<any>(null);
   const [insights, setInsights] = useState<any>(null);
   const [fingerprint, setFingerprint] = useState<any>(null);
+  const [twinState, setTwinState] = useState<any>(null);
+  const [economy, setEconomy] = useState<any>(null);
+  const [storiesCount, setStoriesCount] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const colors = {
-    bg: isDark ? '#0A0014' : '#FAFAF8',
-    card: isDark ? '#1A1226' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#2D2D2D',
-    subtext: isDark ? '#A78BFA' : '#7C6B99',
-    accent: '#7C3AED',
-    accentLight: '#7C3AED20',
-    border: isDark ? '#2D1B4D' : '#E8E8E3',
+    bg: isDark ? '#0A0014' : '#FAFAF8', card: isDark ? '#1A1226' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#2D2D2D', subtext: isDark ? '#A78BFA' : '#7C6B99',
+    accent: '#7C3AED', accentLight: '#7C3AED20', border: isDark ? '#2D1B4D' : '#E8E8E3',
     success: '#10B981', warning: '#F59E0B', danger: '#EF4444', green: '#10B981',
     pink: '#EC4899', gold: '#F59E0B', blue: '#3B82F6',
   };
@@ -99,23 +102,23 @@ export default function Profile() {
     try {
       await getUserStats();
       const store = useTwinStore.getState();
-
-      const [id, ins, fp] = await Promise.all([
+      const [id, ins, fp, ts, re, stories] = await Promise.all([
         apiGet(`/api/memories?user_id=${userId}&limit=1`).catch(() => null),
         apiGet(`/api/memories/reflections?user_id=${userId}`).catch(() => null),
         apiGet(`/api/fingerprint/get?user_id=${userId}`).catch(() => null),
+        apiGet(`/api/twin/state?user_id=${userId}&lang=${lang}`).catch(() => null),
+        apiGet(`/api/relationship/economy?user_id=${userId}`).catch(() => null),
+        apiGet(`/api/memories/stories?user_id=${userId}&lang=${lang}`).catch(() => []),
       ]);
-      setIdentity(id);
-      setInsights(ins);
-      setFingerprint(fp);
-    } catch (e) { console.log('Profile load:', e); }
+      setIdentity(id); setInsights(ins); setFingerprint(fp);
+      if (ts) setTwinState(ts);
+      if (re) setEconomy(re);
+      if (stories?.stories) setStoriesCount(stories.stories.length);
+    } catch (e) {}
     finally { setLoading(false); setRefreshing(false); Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start(); }
   };
 
-  const handleLogout = () => {
-    storeLogout();
-    router.replace('/login');
-  };
+  const handleLogout = () => { storeLogout(); router.replace('/login'); };
 
   if (loading && !refreshing) {
     return (
@@ -133,20 +136,14 @@ export default function Profile() {
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
       <View style={[st.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} stroke={colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}><ArrowLeft size={24} stroke={colors.text} /></TouchableOpacity>
         <Text style={[st.headerTitle, { color: colors.text }]}>{t.title}</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={st.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchProfileData(true)} colors={[colors.accent]} />}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={st.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchProfileData(true)} colors={[colors.accent]} />} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* بطاقة هوية المستخدم */}
+          {/* بطاقة هوية المستخدم الرقمية */}
           <View style={[st.identityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={st.identityHeader}>
               <View style={[st.userAvatar, { backgroundColor: colors.accentLight }]}>
@@ -159,15 +156,12 @@ export default function Profile() {
                 {fingerprint?.fingerprint_hash && (
                   <View style={st.hashRow}>
                     <Fingerprint size={12} stroke={colors.subtext} />
-                    <Text style={[st.hashText, { color: colors.subtext }]}>
-                      {fingerprint.fingerprint_hash}
-                    </Text>
+                    <Text style={[st.hashText, { color: colors.subtext }]}>{fingerprint.fingerprint_hash}</Text>
                   </View>
                 )}
               </View>
             </View>
 
-            {/* مقاييس سريعة */}
             <View style={st.metricsRow}>
               {[
                 { icon: Heart, val: `${Math.round(bondLevel)}%`, label: t.bond, color: colors.pink },
@@ -176,22 +170,41 @@ export default function Profile() {
                 { icon: Star, val: points || 0, label: t.points, color: colors.blue },
               ].map((m, i) => (
                 <View key={i} style={st.metricItem}>
-                  <View style={[st.metricIcon, { backgroundColor: m.color + '20' }]}>
-                    <m.icon size={16} stroke={m.color} />
-                  </View>
+                  <View style={[st.metricIcon, { backgroundColor: m.color + '20' }]}><m.icon size={16} stroke={m.color} /></View>
                   <Text style={[st.metricValue, { color: m.color }]}>{m.val}</Text>
                   <Text style={[st.metricLabel, { color: colors.subtext }]}>{m.label}</Text>
                 </View>
               ))}
             </View>
+
+            {/* ✅ مؤشرات الكيان الرقمي */}
+            {(twinState || economy) && (
+              <View style={[st.entityRow, { borderTopColor: colors.border }]}>
+                {twinState && (
+                  <View style={st.entityItem}>
+                    <Smile size={14} stroke={colors.accent} />
+                    <Text style={[st.entityText, { color: colors.accent }]}>{t.mood}: {twinState.mood_label}</Text>
+                  </View>
+                )}
+                {economy && (
+                  <View style={st.entityItem}>
+                    <Heart size={14} stroke={colors.pink} fill={colors.pink + '20'} />
+                    <Text style={[st.entityText, { color: colors.pink }]}>{t.health}: {economy.health_score}%</Text>
+                  </View>
+                )}
+                {storiesCount > 0 && (
+                  <TouchableOpacity style={st.entityItem} onPress={() => router.push('/stories' as any)}>
+                    <BookOpen size={14} stroke={colors.gold} />
+                    <Text style={[st.entityText, { color: colors.gold }]}>{t.stories}: {storiesCount}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
 
           {/* إحصائيات الحساب */}
           <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={st.cardHeader}>
-              <Activity size={20} stroke={colors.accent} />
-              <Text style={[st.cardTitle, { color: colors.text }]}>{t.stats}</Text>
-            </View>
+            <View style={st.cardHeader}><Activity size={20} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.stats}</Text></View>
             <View style={st.statsGrid}>
               {[
                 { icon: MessageSquare, val: totalMessages, label: t.messages, color: colors.accent },
@@ -210,17 +223,12 @@ export default function Profile() {
 
           {/* استنتاجات عن المستخدم */}
           <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={st.cardHeader}>
-              <Lightbulb size={20} stroke={colors.warning} />
-              <Text style={[st.cardTitle, { color: colors.text }]}>{t.insights}</Text>
-            </View>
+            <View style={st.cardHeader}><Lightbulb size={20} stroke={colors.warning} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.insights}</Text></View>
             {insights?.insights && insights.insights.length > 0 ? (
               insights.insights.slice(0, 5).map((ins: any, i: number) => (
                 <View key={i} style={[st.insightRow, i < Math.min(insights.insights.length, 5) - 1 && { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}>
                   <Eye size={14} stroke={colors.accent} />
-                  <Text style={[st.insightText, { color: colors.subtext }]}>
-                    {ins.text || ins.insight_text || ''}
-                  </Text>
+                  <Text style={[st.insightText, { color: colors.subtext }]}>{ins.text || ins.insight_text || ''}</Text>
                 </View>
               ))
             ) : (
@@ -230,24 +238,15 @@ export default function Profile() {
 
           {/* روابط الحساب */}
           <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={st.cardHeader}>
-              <Shield size={20} stroke={colors.accent} />
-              <Text style={[st.cardTitle, { color: colors.text }]}>{t.account}</Text>
-            </View>
+            <View style={st.cardHeader}><Shield size={20} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.account}</Text></View>
             {[
               { icon: Settings, label: t.settings, route: '/settings', color: colors.accent },
               { icon: Crown, label: t.subscription, route: '/subscription', color: colors.gold },
               { icon: Shield, label: t.privacy, route: '/privacy', color: colors.blue },
               { icon: Activity, label: t.about, route: '/about', color: colors.green },
             ].map((item, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[st.linkRow, i < 3 && { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}
-                onPress={() => router.push(item.route as any)}
-              >
-                <View style={[st.linkIcon, { backgroundColor: item.color + '20' }]}>
-                  <item.icon size={18} stroke={item.color} />
-                </View>
+              <TouchableOpacity key={i} style={[st.linkRow, i < 3 && { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]} onPress={() => router.push(item.route as any)}>
+                <View style={[st.linkIcon, { backgroundColor: item.color + '20' }]}><item.icon size={18} stroke={item.color} /></View>
                 <Text style={[st.linkLabel, { color: colors.text }]}>{item.label}</Text>
                 <ChevronRight size={18} stroke={colors.subtext} />
               </TouchableOpacity>
@@ -282,6 +281,9 @@ const st = StyleSheet.create({
   metricIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   metricValue: { fontSize: 16, fontWeight: '800' },
   metricLabel: { fontSize: 11, fontWeight: '600' },
+  entityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, borderTopWidth: 0.5, paddingTop: 14, marginTop: 4 },
+  entityItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  entityText: { fontSize: 12, fontWeight: '600' },
   card: { borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   cardTitle: { fontSize: 16, fontWeight: '700' },

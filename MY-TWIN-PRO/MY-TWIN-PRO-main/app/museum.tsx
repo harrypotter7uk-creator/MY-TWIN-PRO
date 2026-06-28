@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Animated, Dimensions, Image,
-  TextInput, Alert, Switch,
+  TextInput, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore, TwinStyle, TwinGender, ReplyStyle } from '../store/useTwinStore';
@@ -11,13 +11,10 @@ import { router } from 'expo-router';
 import { apiGet } from '../lib/httpClient';
 import {
   ArrowLeft, Heart, Brain, Zap, Sparkles, TrendingUp,
-  Shield, Fingerprint, User, Activity, Star, Crown,
+  Fingerprint, User, Activity, Star, Crown,
   Palette, Save, Smile, RotateCcw, Volume2, Mic,
   Wand2, CheckCircle2, Edit3, RefreshCw, MessageSquare,
-  Moon, Sun, Globe,
 } from 'lucide-react-native';
-
-const { width: SCREEN_W } = Dimensions.get('window');
 
 const T = {
   ar: {
@@ -55,6 +52,8 @@ const T = {
     enterNameError: 'الرجاء إدخال اسم',
     maxTraitsError: '5 صفات كحد أقصى',
     save: 'حفظ',
+    mood: 'مزاج التوأم',
+    relationship: 'العلاقة',
     phaseLabels: { introduction: 'تعارف', trust_building: 'بناء ثقة', deepening: 'تعمق', growth: 'نمو', mature: 'نضج' } as Record<string, string>,
     emotionLabels: { joy: 'فرح', sadness: 'حزن', anger: 'غضب', fear: 'قلق', love: 'حب', neutral: 'حياد' } as Record<string, string>,
     voiceLabels: { friend: 'صديق', mentor: 'مرشد', romantic: 'رومانسي', energetic: 'حيوي', calm: 'هادئ', genz: 'عصري' } as Record<string, string>,
@@ -97,6 +96,8 @@ const T = {
     enterNameError: 'Please enter a name',
     maxTraitsError: 'Max 5 traits',
     save: 'Save',
+    mood: 'Twin Mood',
+    relationship: 'Relationship',
     phaseLabels: { introduction: 'Intro', trust_building: 'Trust', deepening: 'Deepening', growth: 'Growth', mature: 'Mature' } as Record<string, string>,
     emotionLabels: { joy: 'Joy', sadness: 'Sadness', anger: 'Anger', fear: 'Fear', love: 'Love', neutral: 'Neutral' } as Record<string, string>,
     voiceLabels: { friend: 'Friend', mentor: 'Mentor', romantic: 'Romantic', energetic: 'Energetic', calm: 'Calm', genz: 'Gen Z' } as Record<string, string>,
@@ -141,6 +142,8 @@ export default function TwinMuseum() {
   const [loading, setLoading] = useState(true);
   const [fingerprint, setFingerprint] = useState<any>(null);
   const [avatar, setAvatar] = useState<any>(null);
+  const [twinState, setTwinState] = useState<any>(null);
+  const [economy, setEconomy] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'museum' | 'customize'>('museum');
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -153,81 +156,43 @@ export default function TwinMuseum() {
   const [voicePersonalityState, setVoicePersonalityState] = useState(voicePersonality || 'friend');
 
   const colors = {
-    bg: isDark ? '#0A0014' : '#FAFAF8',
-    card: isDark ? '#1A1226' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#2D2D2D',
-    subtext: isDark ? '#A78BFA' : '#7C6B99',
-    accent: '#7C3AED',
-    accentLight: '#7C3AED20',
-    border: isDark ? '#2D1B4D' : '#E8E8E3',
-    inputBg: isDark ? '#161122' : '#FDFDF9',
-    gold: '#F59E0B',
-    pink: '#EC4899',
-    blue: '#3B82F6',
-    green: '#10B981',
-    success: '#10B981',
+    bg: isDark ? '#0A0014' : '#FAFAF8', card: isDark ? '#1A1226' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#2D2D2D', subtext: isDark ? '#A78BFA' : '#7C6B99',
+    accent: '#7C3AED', accentLight: '#7C3AED20', border: isDark ? '#2D1B4D' : '#E8E8E3',
+    inputBg: isDark ? '#161122' : '#FDFDF9', gold: '#F59E0B', pink: '#EC4899', blue: '#3B82F6', green: '#10B981', success: '#10B981',
   };
 
   useEffect(() => { loadMuseumData(); syncCustomizeState(); }, [userId]);
   useEffect(() => { syncCustomizeState(); }, [twinName, twinGender, twinStyle, replyStyle, twinTraits, voicePersonality]);
 
   const syncCustomizeState = () => {
-    setName(twinName || '');
-    setGender(twinGender || 'female');
-    setStyle(twinStyle || 'supportive');
-    setReply(replyStyle || 'medium');
-    setSelectedTraits(twinTraits || []);
-    setVoicePersonalityState(voicePersonality || 'friend');
+    setName(twinName || ''); setGender(twinGender || 'female'); setStyle(twinStyle || 'supportive');
+    setReply(replyStyle || 'medium'); setSelectedTraits(twinTraits || []); setVoicePersonalityState(voicePersonality || 'friend');
   };
 
   const loadMuseumData = async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const [fp, av] = await Promise.all([
+      const [fp, av, ts, re] = await Promise.all([
         apiGet(`/api/fingerprint/get?user_id=${userId}`),
         apiGet(`/api/avatar/get?user_id=${userId}`),
+        apiGet(`/api/twin/state?user_id=${userId}&lang=${lang}`).catch(() => null),
+        apiGet(`/api/relationship/economy?user_id=${userId}`).catch(() => null),
       ]);
-      setFingerprint(fp);
-      setAvatar(av);
-    } catch (e) { console.log('Museum load:', e); }
+      setFingerprint(fp); setAvatar(av);
+      if (ts) setTwinState(ts);
+      if (re) setEconomy(re);
+    } catch (e) {}
     finally { setLoading(false); Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start(); }
   };
 
   const handleSave = useCallback(() => {
     if (!name.trim()) { Alert.alert(isAr ? 'خطأ' : 'Error', t.enterNameError); return; }
-    setTwinName(name.trim());
-    setTwinGender(gender);
-    setTwinStyle(style);
-    setReplyStyle(reply);
-    setTwinTraits(selectedTraits);
-    setVoiceEnabled(true);
-    setVoicePersonality(voicePersonalityState);
-    setSaved(true);
-    Alert.alert('✅', t.saved);
+    setTwinName(name.trim()); setTwinGender(gender); setTwinStyle(style);
+    setReplyStyle(reply); setTwinTraits(selectedTraits); setVoiceEnabled(true);
+    setVoicePersonality(voicePersonalityState); setSaved(true); Alert.alert('✅', t.saved);
   }, [name, gender, style, reply, selectedTraits, voicePersonalityState]);
-
-  const handleReset = () => {
-    Alert.alert(t.resetTitle, t.resetMsg, [
-      { text: t.cancel, style: 'cancel' },
-      { text: t.confirmReset, onPress: () => {
-        setTwinName('توأمك'); setTwinGender('female'); setTwinStyle('supportive');
-        setReplyStyle('medium'); setTwinTraits([]);
-        setVoicePersonality('friend');
-        setName('توأمك'); setGender('female'); setStyle('supportive');
-        setReply('medium'); setSelectedTraits([]);
-        setVoicePersonalityState('friend');
-      }},
-    ]);
-  };
-
-  const toggleTrait = (trait: string) => {
-    setSelectedTraits(prev => {
-      if (prev.includes(trait)) return prev.filter(x => x !== trait);
-      if (prev.length >= 5) { Alert.alert(isAr ? 'تنبيه' : 'Notice', t.maxTraitsError); return prev; }
-      return [...prev, trait];
-    });
-  };
 
   if (loading) {
     return (
@@ -244,16 +209,13 @@ export default function TwinMuseum() {
   const emotionInfo = t.emotionLabels[dominantEmotion] || t.emotionLabels.neutral;
   const emotionColors: Record<string, string> = { joy: '#F59E0B', sadness: '#4A90E2', anger: '#EF4444', fear: '#9C27B0', love: '#EC4899', neutral: '#7C3AED' };
   const emotionColor = emotionColors[dominantEmotion] || emotionColors.neutral;
+  const energyColor = twinEnergy > 60 ? '#10B981' : twinEnergy > 25 ? '#F59E0B' : '#EF4444';
 
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
       <View style={[st.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} stroke={colors.text} />
-        </TouchableOpacity>
-        <Text style={[st.headerTitle, { color: colors.text }]}>
-          {activeTab === 'museum' ? t.museumTitle : t.customizeTitle}
-        </Text>
+        <TouchableOpacity onPress={() => router.back()}><ArrowLeft size={24} stroke={colors.text} /></TouchableOpacity>
+        <Text style={[st.headerTitle, { color: colors.text }]}>{activeTab === 'museum' ? t.museumTitle : t.customizeTitle}</Text>
         <TouchableOpacity onPress={() => setActiveTab(activeTab === 'museum' ? 'customize' : 'museum')}>
           {activeTab === 'museum' ? <Palette size={22} stroke={colors.accent} /> : <Fingerprint size={22} stroke={colors.accent} />}
         </TouchableOpacity>
@@ -267,9 +229,20 @@ export default function TwinMuseum() {
             </View>
             <Text style={[st.twinName, { color: colors.text }]}>{twinName || 'MyTwin'}</Text>
             <View style={[st.emotionBadge, { backgroundColor: emotionColor + '20', borderColor: emotionColor }]}>
-              <Activity size={14} stroke={emotionColor} />
-              <Text style={[st.emotionText, { color: emotionColor }]}>{emotionInfo}</Text>
+              <Activity size={14} stroke={emotionColor} /><Text style={[st.emotionText, { color: emotionColor }]}>{emotionInfo}</Text>
             </View>
+            {twinState && (
+              <View style={[st.moodBadge, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+                <Smile size={14} stroke={colors.accent} />
+                <Text style={[st.moodText, { color: colors.accent }]}>{t.mood}: {twinState.mood_label}</Text>
+              </View>
+            )}
+            {economy && (
+              <View style={[st.healthRow]}>
+                <Heart size={12} stroke={colors.pink} fill={colors.pink + '20'} />
+                <Text style={[st.healthText, { color: colors.pink }]}>{t.relationship}: {economy.health_score}%</Text>
+              </View>
+            )}
           </View>
 
           {activeTab === 'museum' && (
@@ -277,8 +250,6 @@ export default function TwinMuseum() {
               <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={st.cardHeader}><Fingerprint size={20} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.fingerprint}</Text></View>
                 <Text style={[st.fingerprintHash, { color: colors.subtext }]}>{fingerprint?.fingerprint_hash || t.notGenerated}</Text>
-                {fingerprint?.summary?.personality && <Text style={[st.personality, { color: colors.text }]}>{fingerprint.summary.personality}</Text>}
-                {fingerprint?.summary?.emotional_state && <Text style={[st.emotionSummary, { color: colors.subtext }]}>{fingerprint.summary.emotional_state}</Text>}
               </View>
 
               <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -294,17 +265,6 @@ export default function TwinMuseum() {
                       <s.icon size={24} stroke={s.color} /><Text style={[st.statValue, { color: s.color }]}>{s.val}</Text><Text style={[st.statLabel, { color: colors.subtext }]}>{s.label}</Text>
                     </View>
                   ))}
-                </View>
-              </View>
-
-              <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={st.cardHeader}><Star size={20} stroke={colors.gold} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.traits}</Text></View>
-                <View style={st.traitsGrid}>
-                  {traits.length > 0 ? traits.map((tr: string, i: number) => (
-                    <View key={i} style={[st.traitBadge, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-                      <Text style={[st.traitText, { color: colors.accent }]}>{isAr ? (t.traitNames[tr] || tr) : tr}</Text>
-                    </View>
-                  )) : <Text style={[st.emptyText, { color: colors.subtext }]}>{isAr ? 'تحدث مع توأمك لاكتشاف سماتك' : 'Talk to your Twin to discover traits'}</Text>}
                 </View>
               </View>
 
@@ -327,8 +287,7 @@ export default function TwinMuseum() {
                 <View style={st.optionsGrid}>
                   {GENDERS.map(g => (
                     <TouchableOpacity key={g} style={[st.optionCard, { borderColor: gender === g ? colors.accent : colors.border }, gender === g && { backgroundColor: colors.accentLight }]} onPress={() => setGender(g)}>
-                      <Volume2 size={24} stroke={gender === g ? colors.accent : colors.subtext} />
-                      <Text style={[st.optionText, { color: gender === g ? colors.accent : colors.subtext }]}>{g === 'female' ? t.female : t.male}</Text>
+                      <Volume2 size={24} stroke={gender === g ? colors.accent : colors.subtext} /><Text style={[st.optionText, { color: gender === g ? colors.accent : colors.subtext }]}>{g === 'female' ? t.female : t.male}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -373,7 +332,9 @@ export default function TwinMuseum() {
                   {TRAITS_OPTIONS.map(trait => {
                     const Icon = trait.icon; const isSelected = selectedTraits.includes(trait.ar);
                     return (
-                      <TouchableOpacity key={trait.ar} style={[st.traitChip, { borderColor: isSelected ? trait.color : colors.border }, isSelected && { backgroundColor: trait.color + '20' }]} onPress={() => toggleTrait(trait.ar)}>
+                      <TouchableOpacity key={trait.ar} style={[st.traitChip, { borderColor: isSelected ? trait.color : colors.border }, isSelected && { backgroundColor: trait.color + '20' }]} onPress={() => {
+                        setSelectedTraits(prev => prev.includes(trait.ar) ? prev.filter(x => x !== trait.ar) : prev.length >= 5 ? (Alert.alert(isAr ? 'تنبيه' : 'Notice', t.maxTraitsError), prev) : [...prev, trait.ar]);
+                      }}>
                         <Icon size={16} stroke={isSelected ? trait.color : colors.subtext} />
                         <Text style={[st.traitChipText, { color: isSelected ? trait.color : colors.subtext }]}>{isAr ? trait.ar : trait.en}</Text>
                         {isSelected && <CheckCircle2 size={14} stroke={trait.color} />}
@@ -388,7 +349,12 @@ export default function TwinMuseum() {
                   {saved ? <CheckCircle2 size={20} stroke="#FFF" /> : <Save size={20} stroke="#FFF" />}
                   <Text style={st.saveBtnText}>{t.saveChanges}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[st.resetBtn, { borderColor: colors.border }]} onPress={handleReset}>
+                <TouchableOpacity style={[st.resetBtn, { borderColor: colors.border }]} onPress={() => {
+                  Alert.alert(t.resetTitle, t.resetMsg, [{ text: t.cancel, style: 'cancel' }, { text: t.confirmReset, onPress: () => {
+                    setTwinName('توأمك'); setTwinGender('female'); setTwinStyle('supportive'); setReplyStyle('medium'); setTwinTraits([]); setVoicePersonality('friend');
+                    setName('توأمك'); setGender('female'); setStyle('supportive'); setReply('medium'); setSelectedTraits([]); setVoicePersonalityState('friend');
+                  }}]);
+                }}>
                   <RotateCcw size={20} stroke={colors.subtext} />
                   <Text style={[st.resetBtnText, { color: colors.subtext }]}>{t.reset}</Text>
                 </TouchableOpacity>
@@ -412,20 +378,18 @@ const st = StyleSheet.create({
   twinName: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
   emotionBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   emotionText: { fontSize: 13, fontWeight: '600' },
+  moodBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginTop: 6 },
+  moodText: { fontSize: 13, fontWeight: '600' },
+  healthRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  healthText: { fontSize: 13, fontWeight: '600' },
   card: { borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   cardTitle: { fontSize: 16, fontWeight: '700' },
   fingerprintHash: { fontSize: 12, fontFamily: 'monospace', marginBottom: 8 },
-  personality: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
-  emotionSummary: { fontSize: 13, lineHeight: 20 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   statItem: { width: '46%', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, gap: 6 },
   statValue: { fontSize: 22, fontWeight: '800' },
   statLabel: { fontSize: 12, fontWeight: '600' },
-  traitsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  traitBadge: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  traitText: { fontSize: 13, fontWeight: '600' },
-  emptyText: { fontSize: 13, fontStyle: 'italic' },
   reflectionText: { fontSize: 13, lineHeight: 22, textAlign: 'center' },
   section: { borderRadius: 18, borderWidth: 1, padding: 18, marginBottom: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },

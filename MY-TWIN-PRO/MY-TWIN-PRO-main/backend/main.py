@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv(BASE_DIR / '.env')
 
 from fastapi import FastAPI, Request
+from app.api.dependencies.rate_limiter import RateLimitMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -193,6 +194,7 @@ app = FastAPI(
 allowed = getattr(config, 'ALLOWED_ORIGINS', ["*"])
 if isinstance(allowed, str): allowed = [o.strip() for o in allowed.split(",")]
 app.add_middleware(CORSMiddleware, allow_origins=allowed, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(RateLimitMiddleware)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
