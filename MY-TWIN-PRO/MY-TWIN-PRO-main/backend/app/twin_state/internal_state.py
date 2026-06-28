@@ -1,0 +1,160 @@
+"""
+Twin Internal State v1.0 – الحالة الداخلية للتوأم الرقمي
+=============================================================
+- مزاج مستمر (يتغير بتفاعل المستخدم)
+- طاقة (تنخفض مع الاستخدام، ترتفع مع الراحة)
+- فضول (يزيد مع المواضيع المثيرة)
+- عمق الرابطة (يتعمق مع الزمن)
+- آخر ما فكّر فيه التوأم
+- أسئلة يريد أن يسألها للمستخدم
+"""
+import logging, random, asyncio
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone, timedelta
+from app.infrastructure.database.supabase_client import get_db
+
+logger = logging.getLogger("twin_internal_state")
+
+# ============================================================
+# الثوابت
+# ============================================================
+MOODS = ["contemplative", "energetic", "calm", "playful", "serious", "affectionate", "curious"]
+MOOD_LABELS = {
+    "contemplative": {"ar": "متأمل", "en": "Contemplative"},
+    "energetic": {"ar": "نشيط", "en": "Energetic"},
+    "calm": {"ar": "هادئ", "en": "Calm"},
+    "playful": {"ar": "مرح", "en": "Playful"},
+    "serious": {"ar": "جاد", "en": "Serious"},
+    "affectionate": {"ar": "عاطفي", "en": "Affectionate"},
+    "curious": {"ar": "فضولي", "en": "Curious"},
+}
+
+class TwinInternalState:
+    """يدير الحالة الداخلية للتوأم الرقمي"""
+    
+    def __init__(self):
+        self._states: Dict[str, Dict[str, Any]] = {}
+    
+    async def get_state(self, user_id: str) -> Dict[str, Any]:
+        """استرجاع أو إنشاء الحالة الداخلية للتوأم"""
+        if user_id in self._states:
+            return self._states[user_id]
+        
+        # محاولة التحميل من Supabase
+        try:
+            db = get_db()
+            res = db.table("twin_internal_states").select("*").eq("user_id", user_id).single().execute()
+            if res.data:
+                state = {
+                    "mood": res.data.get("mood", "calm"),
+                    "energy_level": res.data.get("energy_level", 0.8),
+                    "curiosity": res.data.get("curiosity", 0.7),
+                    "bond_depth": res.data.get("bond_depth", 0.1),
+                    "last_thought": res.data.get("last_thought", ""),
+                    "pending_questions": res.data.get("pending_questions", []),
+                    "updated_at": res.data.get("updated_at", datetime.now(timezone.utc).isoformat()),
+                }
+                self._states[user_id] = state
+                return state
+        except:
+            pass
+        
+        # حالة افتراضية جديدة
+        state = {
+            "mood": random.choice(MOODS[:4]),
+            "energy_level": 0.85,
+            "curiosity": 0.75,
+            "bond_depth": 0.1,
+            "last_thought": "",
+            "pending_questions": [],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._states[user_id] = state
+        await self._save_state(user_id, state)
+        return state
+    
+    async def update_mood(self, user_id: str, user_emotion: str, interaction_depth: float) -> str:
+        """تحديث مزاج التوأم بناءً على تفاعل المستخدم"""
+        state = await self.get_state(user_id)
+        
+        # تأثير العاطفة على المزاج
+        emotion_effects = {
+            "joy": ["energetic", "playful", "affectionate"],
+            "sadness": ["calm", "contemplative", "affectionate"],
+            "anger": ["calm", "serious"],
+            "fear": ["calm", "affectionate"],
+            "love": ["affectionate", "energetic", "playful"],
+            "neutral": ["calm", "contemplative"],
+        }
+        
+        possible_moods = emotion_effects.get(user_emotion, MOODS[:4])
+        
+        # تغيير المزاج مع احتمالية تعتمد على عمق التفاعل
+        if random.random() < interaction_depth:
+            new_mood = random.choice(possible_moods)
+            while new_mood == state["mood"] and len(possible_moods) > 1:
+                new_mood = random.choice(possible_moods)
+            state["mood"] = new_mood
+        
+        state["bond_depth"] = min(1.0, state["bond_depth"] + interaction_depth * 0.05)
+        state["energy_level"] = max(0.1, min(1.0, state["energy_level"] - 0.02 + random.random() * 0.04))
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await self._save_state(user_id, state)
+        return state["mood"]
+    
+    async def set_last_thought(self, user_id: str, thought: str):
+        """تسجيل آخر ما فكّر فيه التوأم"""
+        state = await self.get_state(user_id)
+        state["last_thought"] = thought[:500]
+        state["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await self._save_state(user_id, state)
+    
+    async def add_pending_question(self, user_id: str, question: str):
+        """إضافة سؤال يريد التوأم أن يسأله للمستخدم"""
+        state = await self.get_state(user_id)
+        if "pending_questions" not in state:
+            state["pending_questions"] = []
+        state["pending_questions"].append(question)
+        if len(state["pending_questions"]) > 10:
+            state["pending_questions"] = state["pending_questions"][-5:]
+        await self._save_state(user_id, state)
+    
+    async def get_pending_question(self, user_id: str) -> Optional[str]:
+        """استخراج سؤال معلّق وحذفه من القائمة"""
+        state = await self.get_state(user_id)
+        questions = state.get("pending_questions", [])
+        if questions:
+            q = questions.pop(0)
+            state["pending_questions"] = questions
+            await self._save_state(user_id, state)
+            return q
+        return None
+    
+    async def get_mood_label(self, user_id: str, lang: str = "ar") -> str:
+        """استرجاع وصف المزاج باللغة المناسبة"""
+        state = await self.get_state(user_id)
+        mood = state.get("mood", "calm")
+        return MOOD_LABELS.get(mood, {}).get(lang, mood)
+    
+    async def _save_state(self, user_id: str, state: Dict[str, Any]):
+        """حفظ الحالة في Supabase"""
+        try:
+            db = get_db()
+            db.table("twin_internal_states").upsert({
+                "user_id": user_id,
+                "mood": state["mood"],
+                "energy_level": state["energy_level"],
+                "curiosity": state["curiosity"],
+                "bond_depth": state["bond_depth"],
+                "last_thought": state["last_thought"],
+                "pending_questions": state.get("pending_questions", []),
+                "updated_at": state["updated_at"],
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Failed to save twin state: {e}")
+
+
+# نسخة عالمية
+twin_internal_state = TwinInternalState()
+logger.info("✅ Twin Internal State v1.0 initialized")

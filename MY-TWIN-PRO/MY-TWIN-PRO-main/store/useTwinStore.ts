@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiPost, apiGet } from '../lib/httpClient';
 
 export interface ChatMessage {
@@ -54,6 +56,15 @@ export interface TwinStore {
   menuVisible: boolean;
   points: number;
   badges: string[];
+  
+  // ✅ إضافات جديدة للتكامل العميق
+  isOnline: boolean;
+  lastSyncTimestamp: string | null;
+  conversationStreak: number;
+  usedMemoryCount: number;
+  awarenessScore: number;
+  dailyNotificationsSent: number;
+  dailyNotificationsLimit: number;
 
   setAuth: (userId: string) => void;
   setTier: (tier: Tier) => void;
@@ -75,6 +86,15 @@ export interface TwinStore {
   setTwinEnergy: (val: number) => void;
   updateBond: (val: number) => void;
   getEnergyPercent: () => number;
+  
+  // ✅ إضافات جديدة للإجراءات
+  setOnline: (online: boolean) => void;
+  setConversationStreak: (streak: number) => void;
+  incrementUsedMemory: () => void;
+  setAwarenessData: (score: number, sent: number, limit: number) => void;
+  syncWithServer: () => Promise<void>;
+  resetToDefaults: () => void;
+  
   getUserStats: () => Promise<void>;
   getRecommendations: () => Promise<void>;
   getMemories: (limit?: number) => Promise<void>;
@@ -146,125 +166,202 @@ const initialState = {
   menuVisible: false,
   points: 0,
   badges: [] as string[],
+  
+  // ✅ إضافات جديدة
+  isOnline: true,
+  lastSyncTimestamp: null,
+  conversationStreak: 0,
+  usedMemoryCount: 0,
+  awarenessScore: 0,
+  dailyNotificationsSent: 0,
+  dailyNotificationsLimit: 2,
 };
 
 const generateId = () => 'msg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
 
-export const useTwinStore = create<TwinStore>()((set, get) => ({
-  ...initialState,
+export const useTwinStore = create<TwinStore>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
 
-  setAuth: (userId) => set({ userId }),
-  setTier: (tier) => set({ tier }),
-  setLang: (lang) => set({ lang }),
-  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
-  toggleCalmMode: () => set((s) => ({ calmMode: !s.calmMode })),
-  setVoiceEnabled: (enabled) => set({ voiceEnabled: enabled }),
-  setVoicePersonality: (personality) => set({ voicePersonality: personality }),
+      setAuth: (userId) => set({ userId }),
+      setTier: (tier) => set({ tier }),
+      setLang: (lang) => set({ lang }),
+      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      toggleCalmMode: () => set((s) => ({ calmMode: !s.calmMode })),
+      setVoiceEnabled: (enabled) => set({ voiceEnabled: enabled }),
+      setVoicePersonality: (personality) => set({ voicePersonality: personality }),
 
-  setTwinName: (name) => set({ twinName: name }),
-  setTwinGender: (gender) => set({ twinGender: gender }),
-  setTwinStyle: (style) => set({ twinStyle: style }),
-  setReplyStyle: (style) => set({ replyStyle: style }),
-  setTwinTraits: (traits) => set({ twinTraits: traits }),
+      setTwinName: (name) => set({ twinName: name }),
+      setTwinGender: (gender) => set({ twinGender: gender }),
+      setTwinStyle: (style) => set({ twinStyle: style }),
+      setReplyStyle: (style) => set({ replyStyle: style }),
+      setTwinTraits: (traits) => set({ twinTraits: traits }),
 
-  setThinking: (thinking) => set({ isThinking: thinking }),
-  setThinkingStage: (stage) => set({ thinkingStage: stage }),
-  setStreamingText: (text) => set({ streamingText: text }),
+      setThinking: (thinking) => set({ isThinking: thinking }),
+      setThinkingStage: (stage) => set({ thinkingStage: stage }),
+      setStreamingText: (text) => set({ streamingText: text }),
 
-  addMessage: (msg) =>
-    set((s) => ({
-      chatHistory: [...s.chatHistory, {
-        id: msg.id || generateId(),
-        role: msg.role || 'user',
-        content: msg.content || '',
-        timestamp: msg.timestamp || Date.now(),
-        emotion: msg.emotion,
-        provider: msg.provider,
-        failed: msg.failed,
-        image: msg.image,
-        thinkingStage: msg.thinkingStage,
-      }].slice(-200),
-      totalMessages: s.totalMessages + 1,
-      twinEnergy: Math.max(0, s.twinEnergy - 2),
-      bondLevel: Math.min(s.bondLevel + (Math.random() * 0.3 + 0.1), 100),
-    })),
+      // ✅ إضافات جديدة للإجراءات
+      setOnline: (online) => set({ isOnline: online }),
+      setConversationStreak: (streak) => set({ conversationStreak: streak }),
+      incrementUsedMemory: () => set((s) => ({ usedMemoryCount: s.usedMemoryCount + 1 })),
+      setAwarenessData: (score, sent, limit) => set({
+        awarenessScore: score,
+        dailyNotificationsSent: sent,
+        dailyNotificationsLimit: limit,
+      }),
 
-  sendMessage: async (message: string) => {
-    const state = get();
-    set({ isThinking: true, thinkingStage: 'thinking' });
-    state.addMessage({ role: 'user', content: message });
-    const twinMsgId = generateId();
-    state.addMessage({ id: twinMsgId, role: 'twin', content: '', thinkingStage: 'thinking' });
-    try {
-      const response = await apiPost('/api/chat', {
-        message,
-        history: state.chatHistory.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+      syncWithServer: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        try {
+          const res = await apiGet(`/api/stats/dashboard?user_id=${userId}`);
+          if (res) {
+            set({
+              userStats: res,
+              lastSyncTimestamp: new Date().toISOString(),
+              isOnline: true,
+            });
+          }
+        } catch (e) {
+          set({ isOnline: false });
+        }
+      },
+
+      resetToDefaults: () => set({ ...initialState }),
+
+      addMessage: (msg) =>
+        set((s) => ({
+          chatHistory: [...s.chatHistory, {
+            id: msg.id || generateId(),
+            role: msg.role || 'user',
+            content: msg.content || '',
+            timestamp: msg.timestamp || Date.now(),
+            emotion: msg.emotion,
+            provider: msg.provider,
+            failed: msg.failed,
+            image: msg.image,
+            thinkingStage: msg.thinkingStage,
+          }].slice(-200),
+          totalMessages: s.totalMessages + 1,
+          twinEnergy: Math.max(0, s.twinEnergy - 2),
+          bondLevel: Math.min(s.bondLevel + (Math.random() * 0.3 + 0.1), 100),
+        })),
+
+      sendMessage: async (message: string) => {
+        const state = get();
+        set({ isThinking: true, thinkingStage: 'thinking' });
+        state.addMessage({ role: 'user', content: message });
+        const twinMsgId = generateId();
+        state.addMessage({ id: twinMsgId, role: 'twin', content: '', thinkingStage: 'thinking' });
+        try {
+          const response = await apiPost('/api/chat', {
+            message,
+            history: state.chatHistory.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+            lang: state.lang,
+          });
+          set((s) => ({
+            chatHistory: s.chatHistory.map((m) =>
+              m.id === twinMsgId ? { ...m, content: response.reply, provider: response.provider || 'orchestrator', thinkingStage: 'complete' } : m
+            ),
+            isThinking: false,
+            thinkingStage: 'complete',
+          }));
+          // ✅ زيادة عداد الذاكرة المستخدمة بعد كل رد ناجح
+          set((s) => ({ usedMemoryCount: s.usedMemoryCount + 1 }));
+        } catch (error) {
+          set((s) => ({
+            chatHistory: s.chatHistory.map((m) =>
+              m.id === twinMsgId ? { ...m, content: 'عذراً، حدث خطأ في الاتصال 💜', failed: true, thinkingStage: 'complete' } : m
+            ),
+            isThinking: false,
+            thinkingStage: 'complete',
+          }));
+        }
+      },
+
+      setTwinEnergy: (val) => set({ twinEnergy: Math.max(0, Math.min(100, Math.round(val))) }),
+      updateBond: (val) => set({ bondLevel: Math.min(100, Math.round(val)) }),
+      getEnergyPercent: () => get().twinEnergy,
+
+      getUserStats: async () => { try { const res = await apiGet(`/api/stats/dashboard?user_id=${get().userId}`); set({ userStats: res, isOnline: true, lastSyncTimestamp: new Date().toISOString() }); } catch (e) { set({ isOnline: false }); } },
+      getRecommendations: async () => { try { const res = await apiGet(`/api/recommendations/daily?user_id=${get().userId}`); set({ recommendations: res.recommendations?.map((r: any) => r.message) || [] }); } catch (e) {} },
+      getMemories: async (limit = 20) => { try { await apiGet(`/api/memories?user_id=${get().userId}&limit=${limit}`); } catch (e) {} },
+      getRelationshipInsights: async () => { try { await apiGet(`/api/relationship/insights?user_id=${get().userId}`); } catch (e) {} },
+      getWeeklyReport: async () => { try { await apiGet(`/api/reports/weekly?user_id=${get().userId}`); } catch (e) {} },
+      getRelationshipHealth: async () => { try { await apiGet(`/api/relationship/health?user_id=${get().userId}`); } catch (e) {} },
+
+      generateBusinessIdea: async (budget, interests, location) => { return await apiPost('/api/business/generate-idea', { user_id: get().userId, budget, interests, location, lang: get().lang }); },
+      analyzeMarket: async (query) => { return await apiPost('/api/business/market-research', { user_id: get().userId, query, lang: get().lang }); },
+      generateFeasibility: async (idea, budget) => { return await apiPost('/api/business/feasibility', { user_id: get().userId, idea, budget, lang: get().lang }); },
+      generateBusinessCanvas: async (idea) => { return await apiPost('/api/business/canvas', { user_id: get().userId, idea, lang: get().lang }); },
+      generateMarketingPlan: async (idea, budget) => { return await apiPost('/api/business/marketing-plan', { user_id: get().userId, idea, budget, lang: get().lang }); },
+
+      startStudySession: async (concept) => { const result = await apiPost('/api/study/start', { user_id: get().userId, concept, language: get().lang }); set({ activeStudySession: { concept, explanation: result.explanation, depth: 0, accuracy: 0 } }); return result; },
+      getStudyQuestion: async (topic) => { return await apiPost('/api/study/question', { user_id: get().userId, topic, lang: get().lang }); },
+      answerStudyQuestion: async (questionId, answer) => { return await apiPost('/api/study/answer', { user_id: get().userId, question_id: questionId, answer, lang: get().lang }); },
+      endStudySession: async () => { await apiPost('/api/study/end', { user_id: get().userId }); set({ activeStudySession: null }); },
+
+      startCoachingSession: async (topic) => { return await apiPost('/api/life-coach/start', { user_id: get().userId, topic, lang: get().lang }); },
+      getLifeAdvice: async (topic) => { return await apiPost('/api/life-coach/advice', { user_id: get().userId, topic, lang: get().lang }); },
+      getNutritionPlan: async (goal) => { return await apiPost('/api/life-coach/nutrition', { user_id: get().userId, goal, lang: get().lang }); },
+      getFitnessPlan: async (goal) => { return await apiPost('/api/life-coach/fitness', { user_id: get().userId, goal, lang: get().lang }); },
+      createLifePlan: async (details) => { const result = await apiPost('/api/life-coach/plan', { user_id: get().userId, details, lang: get().lang }); set({ activeLifePlan: result }); return result; },
+
+      getDeviceStatus: async () => { return await apiGet(`/api/smart-home/status?user_id=${get().userId}`); },
+      sendDeviceCommand: async (device, command) => { return await apiPost('/api/smart-home/command', { user_id: get().userId, device, command }); },
+      smartHomeCommand: async (command) => { return await apiPost('/api/smart-home/command', { user_id: get().userId, command }); },
+
+      generateImage: async (prompt, style) => { const res = await apiPost('/api/image-lab/generate', { user_id: get().userId, prompt, style }); return res.image_url || ''; },
+      generateContent: async (type, topic) => { return await apiPost('/api/content/generate', { user_id: get().userId, type, topic, lang: get().lang }); },
+
+      createTask: async (title, dueDate, priority) => { const res = await apiPost('/api/tasks/create', { user_id: get().userId, title, due_date: dueDate, priority }); set((s) => ({ tasks: [...s.tasks, res.task || res] })); return res; },
+      listTasks: async () => { try { const res = await apiGet(`/api/tasks?user_id=${get().userId}`); set({ tasks: res.tasks || res || [] }); } catch (e) {} },
+      completeTask: async (taskId) => { const res = await apiPost('/api/tasks/complete', { user_id: get().userId, task_id: taskId }); set((s) => ({ tasks: s.tasks.map((t: any) => t.id === taskId ? { ...t, status: 'completed' } : t) })); return res; },
+
+      generateCode: async (prompt, language) => { return await apiPost('/api/code-lab/generate', { user_id: get().userId, prompt, language }); },
+      debugCode: async (code, language) => { return await apiPost('/api/code-lab/debug', { user_id: get().userId, code, language }); },
+
+      interpretDream: async (dreamText) => { return await apiPost('/api/dreams/interpret', { user_id: get().userId, dream_text: dreamText, lang: get().lang }); },
+
+      clearHistory: () => set({ chatHistory: [], totalMessages: 0 }),
+      logout: () => set({ ...initialState }),
+      openMenu: () => set({ menuVisible: true }),
+      closeMenu: () => set({ menuVisible: false }),
+    }),
+    {
+      name: 'mytwin-store-v3',
+      version: 1,
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        userId: state.userId,
+        twinName: state.twinName,
+        twinGender: state.twinGender,
+        twinStyle: state.twinStyle,
+        twinTraits: state.twinTraits,
+        tier: state.tier,
+        theme: state.theme,
         lang: state.lang,
-      });
-      set((s) => ({
-        chatHistory: s.chatHistory.map((m) =>
-          m.id === twinMsgId ? { ...m, content: response.reply, provider: response.provider || 'orchestrator', thinkingStage: 'complete' } : m
-        ),
-        isThinking: false,
-        thinkingStage: 'complete',
-      }));
-    } catch (error) {
-      set((s) => ({
-        chatHistory: s.chatHistory.map((m) =>
-          m.id === twinMsgId ? { ...m, content: 'عذراً، حدث خطأ في الاتصال 💜', failed: true, thinkingStage: 'complete' } : m
-        ),
-        isThinking: false,
-        thinkingStage: 'complete',
-      }));
+        calmMode: state.calmMode,
+        voiceEnabled: state.voiceEnabled,
+        voicePersonality: state.voicePersonality,
+        bondLevel: state.bondLevel,
+        journeyPhase: state.journeyPhase,
+        attachmentStyle: state.attachmentStyle,
+        points: state.points,
+        badges: state.badges,
+        conversationStreak: state.conversationStreak,
+        usedMemoryCount: state.usedMemoryCount,
+        awarenessScore: state.awarenessScore,
+        dailyNotificationsSent: state.dailyNotificationsSent,
+        dailyNotificationsLimit: state.dailyNotificationsLimit,
+      }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('[MyTwin Store] Rehydration failed – starting fresh');
+        }
+      },
     }
-  },
-
-  setTwinEnergy: (val) => set({ twinEnergy: Math.max(0, Math.min(100, Math.round(val))) }),
-  updateBond: (val) => set({ bondLevel: Math.min(100, Math.round(val)) }),
-  getEnergyPercent: () => get().twinEnergy,
-
-  getUserStats: async () => { try { const res = await apiGet(`/api/stats/dashboard?user_id=${get().userId}`); set({ userStats: res }); } catch (e) {} },
-  getRecommendations: async () => { try { const res = await apiGet(`/api/recommendations/daily?user_id=${get().userId}`); set({ recommendations: res.recommendations?.map((r: any) => r.message) || [] }); } catch (e) {} },
-  getMemories: async (limit = 20) => { try { await apiGet(`/api/memories?user_id=${get().userId}&limit=${limit}`); } catch (e) {} },
-  getRelationshipInsights: async () => { try { await apiGet(`/api/relationship/insights?user_id=${get().userId}`); } catch (e) {} },
-  getWeeklyReport: async () => { try { await apiGet(`/api/reports/weekly?user_id=${get().userId}`); } catch (e) {} },
-  getRelationshipHealth: async () => { try { await apiGet(`/api/relationship/health?user_id=${get().userId}`); } catch (e) {} },
-
-  generateBusinessIdea: async (budget, interests, location) => { return await apiPost('/api/business/generate-idea', { user_id: get().userId, budget, interests, location, lang: get().lang }); },
-  analyzeMarket: async (query) => { return await apiPost('/api/business/market-research', { user_id: get().userId, query, lang: get().lang }); },
-  generateFeasibility: async (idea, budget) => { return await apiPost('/api/business/feasibility', { user_id: get().userId, idea, budget, lang: get().lang }); },
-  generateBusinessCanvas: async (idea) => { return await apiPost('/api/business/canvas', { user_id: get().userId, idea, lang: get().lang }); },
-  generateMarketingPlan: async (idea, budget) => { return await apiPost('/api/business/marketing-plan', { user_id: get().userId, idea, budget, lang: get().lang }); },
-
-  startStudySession: async (concept) => { const result = await apiPost('/api/study/start', { user_id: get().userId, concept, language: get().lang }); set({ activeStudySession: { concept, explanation: result.explanation, depth: 0, accuracy: 0 } }); return result; },
-  getStudyQuestion: async (topic) => { return await apiPost('/api/study/question', { user_id: get().userId, topic, lang: get().lang }); },
-  answerStudyQuestion: async (questionId, answer) => { return await apiPost('/api/study/answer', { user_id: get().userId, question_id: questionId, answer, lang: get().lang }); },
-  endStudySession: async () => { await apiPost('/api/study/end', { user_id: get().userId }); set({ activeStudySession: null }); },
-
-  startCoachingSession: async (topic) => { return await apiPost('/api/life-coach/start', { user_id: get().userId, topic, lang: get().lang }); },
-  getLifeAdvice: async (topic) => { return await apiPost('/api/life-coach/advice', { user_id: get().userId, topic, lang: get().lang }); },
-  getNutritionPlan: async (goal) => { return await apiPost('/api/life-coach/nutrition', { user_id: get().userId, goal, lang: get().lang }); },
-  getFitnessPlan: async (goal) => { return await apiPost('/api/life-coach/fitness', { user_id: get().userId, goal, lang: get().lang }); },
-  createLifePlan: async (details) => { const result = await apiPost('/api/life-coach/plan', { user_id: get().userId, details, lang: get().lang }); set({ activeLifePlan: result }); return result; },
-
-  getDeviceStatus: async () => { return await apiGet(`/api/smart-home/status?user_id=${get().userId}`); },
-  sendDeviceCommand: async (device, command) => { return await apiPost('/api/smart-home/command', { user_id: get().userId, device, command }); },
-  smartHomeCommand: async (command) => { return await apiPost('/api/smart-home/command', { user_id: get().userId, command }); },
-
-  generateImage: async (prompt, style) => { const res = await apiPost('/api/image-lab/generate', { user_id: get().userId, prompt, style }); return res.image_url || ''; },
-  generateContent: async (type, topic) => { return await apiPost('/api/content/generate', { user_id: get().userId, type, topic, lang: get().lang }); },
-
-  createTask: async (title, dueDate, priority) => { const res = await apiPost('/api/tasks/create', { user_id: get().userId, title, due_date: dueDate, priority }); set((s) => ({ tasks: [...s.tasks, res.task || res] })); return res; },
-  listTasks: async () => { try { const res = await apiGet(`/api/tasks?user_id=${get().userId}`); set({ tasks: res.tasks || res || [] }); } catch (e) {} },
-  completeTask: async (taskId) => { const res = await apiPost('/api/tasks/complete', { user_id: get().userId, task_id: taskId }); set((s) => ({ tasks: s.tasks.map((t: any) => t.id === taskId ? { ...t, status: 'completed' } : t) })); return res; },
-
-  generateCode: async (prompt, language) => { return await apiPost('/api/code-lab/generate', { user_id: get().userId, prompt, language }); },
-  debugCode: async (code, language) => { return await apiPost('/api/code-lab/debug', { user_id: get().userId, code, language }); },
-
-  interpretDream: async (dreamText) => { return await apiPost('/api/dreams/interpret', { user_id: get().userId, dream_text: dreamText, lang: get().lang }); },
-
-  clearHistory: () => set({ chatHistory: [], totalMessages: 0 }),
-  logout: () => set({ ...initialState }),
-  openMenu: () => set({ menuVisible: true }),
-  closeMenu: () => set({ menuVisible: false }),
-}));
+  )
+);

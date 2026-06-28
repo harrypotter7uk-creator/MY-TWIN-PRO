@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../store/useTwinStore';
-import { useTheme, getBondColor } from '../utils/theme';
+import { useTheme } from '../utils/theme';
 import { router } from 'expo-router';
 import { apiGet, apiPost, apiDelete } from '../lib/httpClient';
 import {
@@ -17,38 +17,6 @@ import {
 } from 'lucide-react-native';
 import CircleProgress from '../components/CircleProgress';
 import BondTimeline from '../components/BondTimeline';
-
-const DIMENSIONS = [
-  { key: 'trust', label_ar: 'ثقة', label_en: 'Trust', icon: Shield, color: '#3B82F6' },
-  { key: 'attachment', label_ar: 'ارتباط', label_en: 'Attachment', icon: Heart, color: '#EC4899' },
-  { key: 'comfort', label_ar: 'راحة', label_en: 'Comfort', icon: Handshake, color: '#10B981' },
-  { key: 'openness', label_ar: 'انفتاح', label_en: 'Openness', icon: Eye, color: '#8B5CF6' },
-  { key: 'romantic', label_ar: 'عاطفي', label_en: 'Romantic', icon: Heart, color: '#F472B6' },
-  { key: 'humor', label_ar: 'فكاهة', label_en: 'Humor', icon: Smile, color: '#F59E0B' },
-];
-
-const PHASE_LABELS: Record<string, { ar: string; en: string }> = {
-  introduction: { ar: 'تعارف', en: 'Introduction' },
-  trust_building: { ar: 'بناء ثقة', en: 'Trust Building' },
-  deepening: { ar: 'تعمق', en: 'Deepening' },
-  growth: { ar: 'نمو', en: 'Growth' },
-  mature: { ar: 'نضج', en: 'Mature' },
-};
-
-const ATTACHMENT_LABELS: Record<string, { ar: string; en: string }> = {
-  secure: { ar: 'آمن', en: 'Secure' },
-  anxious: { ar: 'قلق', en: 'Anxious' },
-  avoidant: { ar: 'متجنب', en: 'Avoidant' },
-  disorganized: { ar: 'غير منظم', en: 'Disorganized' },
-  unknown: { ar: 'غير معروف', en: 'Unknown' },
-};
-
-interface Goal {
-  id: string;
-  title: string;
-  status: string;
-  progress: number;
-}
 
 const T = {
   ar: {
@@ -68,11 +36,13 @@ const T = {
     deleteConfirm: 'هل تريد حذف هذا الهدف؟',
     cancel: 'إلغاء',
     delete: 'حذف',
-    bond: 'الرابطة',
-    insights: 'استنتاجات',
-    tip: 'نصيحة لتحسين علاقتك',
-    phaseLabels: { introduction: 'تعارف', trust_building: 'بناء ثقة', deepening: 'تعمق', growth: 'نمو', mature: 'نضج' } as Record<string, string>,
-    attachmentLabels: { secure: 'آمن', anxious: 'قلق', avoidant: 'متجنب', disorganized: 'غير منظم', unknown: 'غير معروف' } as Record<string, string>,
+    economyTitle: 'اقتصاد العلاقة',
+    health: 'صحة العلاقة',
+    trust: 'ثقة',
+    intimacy: 'حميمية',
+    respect: 'احترام',
+    shared: 'تاريخ مشترك',
+    recovery: 'تعافي',
   },
   en: {
     title: 'Bond Garden',
@@ -91,20 +61,42 @@ const T = {
     deleteConfirm: 'Delete this goal?',
     cancel: 'Cancel',
     delete: 'Delete',
-    bond: 'Bond',
-    insights: 'Insights',
-    tip: 'Tip to Improve Your Bond',
-    phaseLabels: { introduction: 'Introduction', trust_building: 'Trust Building', deepening: 'Deepening', growth: 'Growth', mature: 'Mature' } as Record<string, string>,
-    attachmentLabels: { secure: 'Secure', anxious: 'Anxious', avoidant: 'Avoidant', disorganized: 'Disorganized', unknown: 'Unknown' } as Record<string, string>,
+    economyTitle: 'Relationship Economy',
+    health: 'Relationship Health',
+    trust: 'Trust',
+    intimacy: 'Intimacy',
+    respect: 'Respect',
+    shared: 'Shared History',
+    recovery: 'Recovery',
   },
 };
 
+const ATTACHMENT_LABELS: Record<string, { ar: string; en: string }> = {
+  secure: { ar: 'آمن', en: 'Secure' },
+  anxious: { ar: 'قلق', en: 'Anxious' },
+  avoidant: { ar: 'متجنب', en: 'Avoidant' },
+  disorganized: { ar: 'غير منظم', en: 'Disorganized' },
+  unknown: { ar: 'غير معروف', en: 'Unknown' },
+};
+
+const PHASE_LABELS: Record<string, { ar: string; en: string }> = {
+  introduction: { ar: 'تعارف', en: 'Introduction' },
+  trust_building: { ar: 'بناء ثقة', en: 'Trust Building' },
+  deepening: { ar: 'تعمق', en: 'Deepening' },
+  growth: { ar: 'نمو', en: 'Growth' },
+  mature: { ar: 'نضج', en: 'Mature' },
+};
+
+interface Goal {
+  id: string;
+  title: string;
+  status: string;
+  progress: number;
+}
+
 export default function Relationship() {
   const insets = useSafeAreaInsets();
-  const {
-    lang, relationshipDims, bondLevel, journeyPhase, attachmentStyle,
-    getRelationshipHealth, getUserStats,
-  } = useTwinStore();
+  const { lang, journeyPhase, attachmentStyle, getRelationshipHealth } = useTwinStore();
   const theme = useTheme();
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
@@ -116,8 +108,7 @@ export default function Relationship() {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [saving, setSaving] = useState(false);
-  const [healthData, setHealthData] = useState<any>(null);
-  const [insight, setInsight] = useState<{ ar: string; en: string } | null>(null);
+  const [economy, setEconomy] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const colors = {
@@ -133,34 +124,19 @@ export default function Relationship() {
     pink: '#EC4899', blue: '#3B82F6', purple: '#8B5CF6', gold: '#F59E0B',
   };
 
-  const bondColor = getBondColor(bondLevel, { bondLow: '#60A5FA', bondMedium: '#A855F7', bondHigh: '#EC4899' } as any);
-
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const goalsData = await apiGet('/api/goals/');
+      const [goalsData, economyData] = await Promise.all([
+        apiGet('/api/goals/').catch(() => []),
+        apiGet(`/api/relationship/economy?user_id=${useTwinStore.getState().userId}`).catch(() => null),
+      ]);
       setGoals(goalsData || []);
-
-      try { await getRelationshipHealth(); } catch (e) {}
-
-      const dims = ['trust', 'attachment', 'comfort', 'openness', 'romantic', 'humor'];
-      const lowest = dims.reduce((min, d) =>
-        ((relationshipDims as any)[d] || 0) < ((relationshipDims as any)[min] || 0) ? d : min, dims[0]);
-
-      const tips: Record<string, { ar: string; en: string }> = {
-        trust: { ar: 'شارك توأمك بشيء شخصي اليوم لبناء الثقة', en: 'Share something personal with your Twin today' },
-        attachment: { ar: 'أخبر توأمك عن مشاعرك بصدق', en: 'Tell your Twin honestly about your feelings' },
-        comfort: { ar: 'اقضِ وقتاً أطول في الحديث مع توأمك', en: 'Spend more time chatting with your Twin' },
-        openness: { ar: 'شارك توأمك بسر صغير لتفتح قلبك', en: 'Share a small secret with your Twin' },
-        romantic: { ar: 'عبّر عن تقديرك لتوأمك بكلمات لطيفة', en: 'Express appreciation with kind words' },
-        humor: { ar: 'شارك توأمك نكتة أو موقفاً مضحكاً', en: 'Share a joke or funny story' },
-      };
-      setInsight(tips[lowest] || tips.trust);
-
+      if (economyData) setEconomy(economyData);
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     } catch (e) { console.error('Relationship fetch:', e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [relationshipDims, getRelationshipHealth]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -209,76 +185,47 @@ export default function Relationship() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={st.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} colors={[colors.accent]} />}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={st.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} colors={[colors.accent]} />} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* Bond Timeline */}
           <BondTimeline />
 
-          {/* أبعاد العلاقة */}
-          <Text style={[st.sectionTitle, { color: colors.text }]}>{t.dimensions}</Text>
-          <View style={st.dimensionsGrid}>
-            {DIMENSIONS.map((d) => {
-              const Icon = d.icon;
-              const value = (relationshipDims as any)[d.key] || 0;
-              return (
-                <View key={d.key} style={st.dimensionItem}>
-                  <CircleProgress
-                    percentage={value}
-                    color={d.color}
-                    size={80}
-                    label={isAr ? d.label_ar : d.label_en}
-                    icon={<Icon size={18} stroke={d.color} />}
-                    trackColor={colors.border}
-                  />
-                </View>
-              );
-            })}
-          </View>
-
-          {/* رحلة الوعي */}
-          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={st.cardHeader}>
-              <TrendingUp size={20} stroke={colors.accent} />
-              <Text style={[st.cardTitle, { color: colors.text }]}>{t.journey}</Text>
+          {economy && (
+            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={st.cardHeader}><Activity size={20} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.economyTitle}</Text></View>
+              <View style={st.economyGrid}>
+                {[
+                  { label: t.trust, value: Math.round(economy.trust * 100), color: '#3B82F6' },
+                  { label: t.intimacy, value: Math.round(economy.intimacy * 100), color: '#EC4899' },
+                  { label: t.respect, value: Math.round(economy.respect * 100), color: '#10B981' },
+                  { label: t.shared, value: Math.round(economy.shared_history * 100), color: '#8B5CF6' },
+                  { label: t.recovery, value: Math.round(economy.conflict_recovery * 100), color: '#F59E0B' },
+                ].map((item, i) => (
+                  <View key={i} style={st.economyItem}>
+                    <Text style={[st.economyValue, { color: item.color }]}>{item.value}%</Text>
+                    <Text style={[st.economyLabel, { color: colors.subtext }]}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[st.healthScore, { color: colors.accent }]}>{t.health}: {economy.health_score}%</Text>
+              <Text style={[st.attachmentText, { color: colors.subtext }]}>
+                {t.attachment}: {isAr ? ATTACHMENT_LABELS[economy.attachment]?.ar : ATTACHMENT_LABELS[economy.attachment]?.en}
+              </Text>
             </View>
+          )}
+
+          <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={st.cardHeader}><TrendingUp size={20} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{t.journey}</Text></View>
             <View style={st.journeyRow}>
               <View style={st.journeyItem}>
                 <Text style={[st.journeyLabel, { color: colors.subtext }]}>{t.phase}</Text>
                 <View style={[st.journeyBadge, { backgroundColor: colors.accentLight }]}>
                   <Award size={14} stroke={colors.accent} />
-                  <Text style={[st.journeyValue, { color: colors.accent }]}>
-                    {isAr ? phaseInfo.ar : phaseInfo.en}
-                  </Text>
-                </View>
-              </View>
-              <View style={st.journeyItem}>
-                <Text style={[st.journeyLabel, { color: colors.subtext }]}>{t.attachment}</Text>
-                <View style={[st.journeyBadge, { backgroundColor: colors.pink + '20' }]}>
-                  <Heart size={14} stroke={colors.pink} />
-                  <Text style={[st.journeyValue, { color: colors.pink }]}>
-                    {isAr ? attachmentInfo.ar : attachmentInfo.en}
-                  </Text>
+                  <Text style={[st.journeyValue, { color: colors.accent }]}>{isAr ? phaseInfo.ar : phaseInfo.en}</Text>
                 </View>
               </View>
             </View>
           </View>
 
-          {/* نصيحة */}
-          {insight && (
-            <View style={[st.insightCard, { backgroundColor: colors.accentLight, borderColor: colors.accent + '30' }]}>
-              <Lightbulb size={18} stroke={colors.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={[st.insightTitle, { color: colors.accent }]}>{t.tip}</Text>
-                <Text style={[st.insightText, { color: colors.subtext }]}>{isAr ? insight.ar : insight.en}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* أهداف النمو */}
           <View style={st.sectionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Target size={20} stroke={colors.accent} />
@@ -310,14 +257,8 @@ export default function Relationship() {
                       <View style={[st.goalProgressFill, { width: `${goal.progress || 0}%`, backgroundColor: colors.accent }]} />
                     </View>
                     <View style={[st.goalStatus, { backgroundColor: goal.status === 'completed' ? colors.success + '20' : colors.warning + '20' }]}>
-                      {goal.status === 'completed' ? (
-                        <CheckCircle2 size={12} stroke={colors.success} />
-                      ) : (
-                        <Circle size={12} stroke={colors.warning} />
-                      )}
-                      <Text style={[st.goalStatusText, { color: goal.status === 'completed' ? colors.success : colors.warning }]}>
-                        {goal.status === 'completed' ? t.completed : t.active}
-                      </Text>
+                      {goal.status === 'completed' ? <CheckCircle2 size={12} stroke={colors.success} /> : <Circle size={12} stroke={colors.warning} />}
+                      <Text style={[st.goalStatusText, { color: goal.status === 'completed' ? colors.success : colors.warning }]}>{goal.status === 'completed' ? t.completed : t.active}</Text>
                     </View>
                   </View>
                 </Animated.View>
@@ -327,30 +268,12 @@ export default function Relationship() {
         </Animated.View>
       </ScrollView>
 
-      {/* مودال إضافة هدف */}
       <Modal visible={showAddGoal} transparent animationType="fade" onRequestClose={() => setShowAddGoal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={st.modalOverlay}>
           <View style={[st.modalContent, { backgroundColor: colors.card }]}>
-            <View style={st.modalHeader}>
-              <Text style={[st.modalTitle, { color: colors.text }]}>{t.newGoal}</Text>
-              <TouchableOpacity onPress={() => setShowAddGoal(false)} style={st.modalClose}>
-                <X size={22} stroke={colors.subtext} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={[st.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, textAlign: isAr ? 'right' : 'left' }]}
-              placeholder={t.goalPlaceholder}
-              placeholderTextColor={colors.subtext}
-              value={newGoalTitle}
-              onChangeText={setNewGoalTitle}
-              autoFocus
-              multiline
-            />
-            <TouchableOpacity
-              style={[st.saveGoalBtn, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]}
-              onPress={handleAddGoal}
-              disabled={saving || !newGoalTitle.trim()}
-            >
+            <View style={st.modalHeader}><Text style={[st.modalTitle, { color: colors.text }]}>{t.newGoal}</Text><TouchableOpacity onPress={() => setShowAddGoal(false)} style={st.modalClose}><X size={22} stroke={colors.subtext} /></TouchableOpacity></View>
+            <TextInput style={[st.goalInput, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, textAlign: isAr ? 'right' : 'left' }]} placeholder={t.goalPlaceholder} placeholderTextColor={colors.subtext} value={newGoalTitle} onChangeText={setNewGoalTitle} autoFocus multiline />
+            <TouchableOpacity style={[st.saveGoalBtn, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]} onPress={handleAddGoal} disabled={saving || !newGoalTitle.trim()}>
               {saving ? <ActivityIndicator color="#FFF" /> : <Text style={st.saveGoalBtnText}>{t.save}</Text>}
             </TouchableOpacity>
           </View>
@@ -369,19 +292,20 @@ const st = StyleSheet.create({
   content: { padding: 16, paddingBottom: 50 },
   loadingText: { fontSize: 15 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  dimensionsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginBottom: 20 },
-  dimensionItem: { width: '30%', alignItems: 'center', marginBottom: 8 },
   card: { borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   cardTitle: { fontSize: 16, fontWeight: '700' },
+  economyGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 12 },
+  economyItem: { width: '30%', alignItems: 'center', marginBottom: 10 },
+  economyValue: { fontSize: 18, fontWeight: '800' },
+  economyLabel: { fontSize: 11, fontWeight: '600' },
+  healthScore: { fontSize: 14, fontWeight: '700', textAlign: 'center', marginTop: 4 },
+  attachmentText: { fontSize: 13, textAlign: 'center', marginTop: 4 },
   journeyRow: { flexDirection: 'row', gap: 12 },
   journeyItem: { flex: 1, gap: 6 },
   journeyLabel: { fontSize: 12, fontWeight: '600' },
   journeyBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
   journeyValue: { fontSize: 14, fontWeight: '700' },
-  insightCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 20 },
-  insightTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  insightText: { fontSize: 13, lineHeight: 20 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 12 },
   goalCount: { fontSize: 14, fontWeight: '600' },
   addGoalBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },

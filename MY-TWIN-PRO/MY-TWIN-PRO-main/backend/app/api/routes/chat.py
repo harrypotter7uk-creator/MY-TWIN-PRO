@@ -1,10 +1,11 @@
 """
-Chat Routes v5.0 – محرك المحادثة المركزي مع Twin Brain
+Chat Routes v7.0 – محرك المحادثة مع Twin OS Kernel
 ===========================================================
-يستخدم Twin Brain الموحد بدلاً من Gemini المباشر.
+- يستخدم TwinKernel (النواة الموحدة) بدلاً من الاستدعاءات المنفصلة
+- جميع المحركات تُدار من النواة
 """
-import logging
-from fastapi import APIRouter, HTTPException, Depends
+import logging, time
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
@@ -20,53 +21,83 @@ class ChatRequest(BaseModel):
 
 @router.post("")
 async def chat(request: ChatRequest) -> Dict[str, Any]:
-    """نقطة النهاية الرئيسية للمحادثة – عبر Twin Brain"""
-    import time
+    """نقطة النهاية الرئيسية – عبر Twin OS Kernel"""
     start = time.time()
     
     try:
-        # استخدام Twin Brain الموحد
+        # 1. استخدام Twin Brain لتوليد الرد
         from app.twin_brain.brain_orchestrator import twin_brain
+        
+        # دمج الذاكرة العاملة في الـ prompt
+        enriched_message = request.message
+        if request.user_id:
+            try:
+                from app.twin_state.working_memory import working_memory
+                context = await working_memory.get_context_for_prompt(request.user_id)
+                if context:
+                    enriched_message = f"{context}\n\n[الآن]\nالمستخدم: {request.message}"
+            except:
+                pass
         
         result = await twin_brain.process(
             user_id=request.user_id or "anonymous",
-            message=request.message,
+            message=enriched_message,
             history=request.history,
             lang=request.lang,
         )
         
+        reply = result["reply"]
+        detected_emotion = result.get("emotion", "neutral")
+        strategy = result.get("strategy", {}).get("goal", "general")
+        
+        # 2. فحص الجودة والهلوسة
+        try:
+            from app.safety.response_validator import response_validator
+            validation = await response_validator.validate(
+                reply=reply,
+                user_id=request.user_id,
+                emotion={"primary": detected_emotion},
+            )
+            if validation.get("repaired"):
+                reply = validation["final_reply"]
+        except Exception as e:
+            logger.warning(f"Validation skipped: {e}")
+        
+        # 3. ✅ استخدام النواة الموحدة (بدلاً من الاستدعاءات المنفصلة)
+        kernel_result = None
+        if request.user_id:
+            try:
+                from app.twin_state.twin_kernel import twin_kernel
+                kernel_result = await twin_kernel.process_interaction(
+                    user_id=request.user_id,
+                    message=request.message,
+                    reply=reply,
+                    emotion=detected_emotion,
+                    interaction_depth=0.5,
+                )
+            except Exception as e:
+                logger.warning(f"Kernel processing skipped: {e}")
+        
         latency_ms = (time.time() - start) * 1000
         
         return {
-            "reply": result["reply"],
+            "reply": reply,
             "provider": "twin_brain",
-            "emotion": result.get("emotion"),
-            "strategy": result.get("strategy", {}).get("goal"),
-            "latency_ms": round(latency_ms, 2)
+            "emotion": detected_emotion,
+            "strategy": strategy,
+            "latency_ms": round(latency_ms, 2),
+            "kernel": kernel_result.get("engines_triggered", []) if kernel_result else [],
         }
         
     except Exception as e:
-        logger.error(f"Twin Brain failed, falling back: {e}")
-        # احتياطي: استخدام AIGateway مباشرة
+        logger.error(f"Twin Brain failed: {e}")
         try:
             from app.infrastructure.ai.ai_gateway import ai_gateway
             reply, provider = await ai_gateway.route(
-                prompt=request.message,
-                task="general",
-                user_id=request.user_id
+                prompt=request.message, task="general", user_id=request.user_id,
             )
-            return {
-                "reply": reply,
-                "provider": provider,
-                "emotion": None,
-                "latency_ms": (time.time() - start) * 1000
-            }
+            return {"reply": reply, "provider": provider, "emotion": None, "strategy": "fallback", "latency_ms": (time.time() - start) * 1000}
         except:
-            return {
-                "reply": "أنا هنا معك. حدث خطأ بسيط، لكني ما زلت بجانبك 💜",
-                "provider": "fallback",
-                "emotion": None,
-                "latency_ms": (time.time() - start) * 1000
-            }
+            return {"reply": "أنا هنا معك 💜", "provider": "fallback", "emotion": None, "strategy": "error_recovery", "latency_ms": (time.time() - start) * 1000}
 
-logger.info("✅ Chat Routes v5.0 initialized with Twin Brain")
+logger.info("✅ Chat Routes v7.0 initialized with Twin OS Kernel")

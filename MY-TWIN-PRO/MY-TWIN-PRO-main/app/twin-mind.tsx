@@ -10,7 +10,7 @@ import { router } from 'expo-router';
 import { apiGet, apiPost } from '../lib/httpClient';
 import {
   Sparkles, Heart, Zap, Brain, TrendingUp, Crown, MessageSquare,
-  Lightbulb, Activity, Eye, Bell, Calendar, Plus, X,
+  Lightbulb, Activity, Eye, Bell, Calendar, Plus, X, Smile,
 } from 'lucide-react-native';
 
 export default function TwinMindCenter() {
@@ -27,6 +27,8 @@ export default function TwinMindCenter() {
   const [notificationFreq, setNotificationFreq] = useState<any>(null);
   const [crossRecommendations, setCrossRecommendations] = useState<any[]>([]);
   const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [twinState, setTwinState] = useState<any>(null);
+  const [relationshipEconomy, setRelationshipEconomy] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -43,18 +45,14 @@ export default function TwinMindCenter() {
     accent: '#7C3AED',
     accentLight: '#7C3AED20',
     border: isDark ? '#2D1B4D' : '#E8E8E3',
-    success: '#10B981',
-    warning: '#F59E0B',
-    pink: '#EC4899',
-    gold: '#F59E0B',
-    blue: '#3B82F6',
+    success: '#10B981', warning: '#F59E0B', pink: '#EC4899', gold: '#F59E0B', blue: '#3B82F6',
   };
 
   const fetchData = async () => {
     if (!userId) return;
     setRefreshing(true);
     try {
-      const [av, fp, aw, awScore, notifFreq, recs, sync] = await Promise.all([
+      const [av, fp, aw, awScore, notifFreq, recs, sync, ts, re] = await Promise.all([
         apiGet(`/api/avatar/get?user_id=${userId}`).catch(() => null),
         apiGet(`/api/fingerprint/get?user_id=${userId}`).catch(() => null),
         apiGet(`/api/awareness/check?user_id=${userId}&lang=${lang}`).catch(() => null),
@@ -62,14 +60,15 @@ export default function TwinMindCenter() {
         apiGet(`/api/awareness-score/frequency?user_id=${userId}&tier=${tier}`).catch(() => null),
         apiGet(`/api/consciousness/recommendations?user_id=${userId}`).catch(() => null),
         apiGet(`/api/sync/status?user_id=${userId}`).catch(() => null),
+        apiGet(`/api/twin/state?user_id=${userId}&lang=${lang}`).catch(() => null),
+        apiGet(`/api/relationship/economy?user_id=${userId}`).catch(() => null),
       ]);
-      setAvatar(av);
-      setFingerprint(fp);
-      setAwareness(aw?.notification || null);
-      if (awScore) setAwarenessScore(awScore);
-      if (notifFreq) setNotificationFreq(notifFreq);
+      setAvatar(av); setFingerprint(fp); setAwareness(aw?.notification || null);
+      if (awScore) setAwarenessScore(awScore); if (notifFreq) setNotificationFreq(notifFreq);
       if (recs?.recommendations) setCrossRecommendations(recs.recommendations);
       if (sync?.last_sync) setSyncStatus(sync);
+      if (ts) setTwinState(ts);
+      if (re) setRelationshipEconomy(re);
     } catch (e) {}
     setRefreshing(false);
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
@@ -89,10 +88,8 @@ export default function TwinMindCenter() {
     setSyncLoading(true);
     try {
       await apiPost('/api/sync/calendar', { user_id: userId, events: [{ title: syncEventTitle, date: syncEventDate, time: '', event_type: 'meeting' }] });
-      setSyncModalVisible(false);
-      setSyncEventTitle(''); setSyncEventDate('');
-      fetchData();
-      Alert.alert('✅', isAr ? 'تمت المزامنة بنجاح' : 'Synced successfully');
+      setSyncModalVisible(false); setSyncEventTitle(''); setSyncEventDate('');
+      fetchData(); Alert.alert('✅', isAr ? 'تمت المزامنة بنجاح' : 'Synced successfully');
     } catch (e: any) { Alert.alert(isAr ? 'خطأ' : 'Error', e.message || 'Sync failed'); }
     finally { setSyncLoading(false); }
   };
@@ -105,17 +102,21 @@ export default function TwinMindCenter() {
 
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
-      <ScrollView
-        contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}
-      >
+      <ScrollView contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* الأفاتار والطاقة */}
           <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[st.avatarGlow, { borderColor: energyColor }]}>
               {avatar?.image_url ? <Image source={{ uri: avatar.image_url }} style={st.avatarImg} /> : <Sparkles size={60} stroke={colors.accent} />}
             </View>
             <Text style={[st.twinName, { color: colors.text }]}>{twinName}</Text>
+            {twinState && (
+              <View style={[st.moodBadge, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+                <Smile size={14} stroke={colors.accent} />
+                <Text style={[st.moodText, { color: colors.accent }]}>
+                  {isAr ? `توأمك اليوم ${twinState.mood_label}` : `Your twin is ${twinState.mood_label} today`}
+                </Text>
+              </View>
+            )}
             <View style={st.energyRow}>
               <Zap size={16} stroke={energyColor} />
               <View style={[st.energyBar, { backgroundColor: colors.border }]}><View style={[st.energyFill, { width: `${twinEnergy}%`, backgroundColor: energyColor }]} /></View>
@@ -123,7 +124,6 @@ export default function TwinMindCenter() {
             </View>
           </View>
 
-          {/* مقاييس سريعة */}
           <View style={st.metricsRow}>
             {[
               { icon: Heart, val: `${Math.round(bondLevel)}%`, label: isAr ? 'الرابطة' : 'Bond', color: '#EC4899' },
@@ -139,15 +139,32 @@ export default function TwinMindCenter() {
             ))}
           </View>
 
-          {/* Awareness Score */}
+          {relationshipEconomy && (
+            <View style={[st.relationshipCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'اقتصاد العلاقة' : 'Relationship Economy'}</Text>
+              <View style={st.relationshipRow}>
+                {[
+                  { label: isAr ? 'ثقة' : 'Trust', value: Math.round(relationshipEconomy.trust * 100), color: '#3B82F6' },
+                  { label: isAr ? 'حميمية' : 'Intimacy', value: Math.round(relationshipEconomy.intimacy * 100), color: '#EC4899' },
+                  { label: isAr ? 'احترام' : 'Respect', value: Math.round(relationshipEconomy.respect * 100), color: '#10B981' },
+                ].map((item, i) => (
+                  <View key={i} style={st.relationshipItem}>
+                    <Text style={[st.relationshipValue, { color: item.color }]}>{item.value}%</Text>
+                    <Text style={[st.relationshipLabel, { color: colors.subtext }]}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[st.healthScore, { color: colors.accent }]}>
+                {isAr ? 'صحة العلاقة' : 'Relationship Health'}: {relationshipEconomy.health_score}%
+              </Text>
+            </View>
+          )}
+
           {awarenessScore && (
             <View style={[st.awarenessScoreCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
               <View style={st.awarenessScoreHeader}><Eye size={22} stroke={colors.accent} /><Text style={[st.awarenessScoreTitle, { color: colors.accent }]}>{isAr ? 'مدى فهم توأمك لك' : 'Your Twin Understands You'}</Text></View>
               <View style={st.awarenessScoreBody}>
-                <View style={st.awarenessScoreCircle}>
-                  <Text style={[st.awarenessScoreValue, { color: colors.accent }]}>{awarenessScore.score}%</Text>
-                  <Text style={[st.awarenessScoreLevel, { color: colors.subtext }]}>{awarenessScore.level}</Text>
-                </View>
+                <View style={st.awarenessScoreCircle}><Text style={[st.awarenessScoreValue, { color: colors.accent }]}>{awarenessScore.score}%</Text><Text style={[st.awarenessScoreLevel, { color: colors.subtext }]}>{awarenessScore.level}</Text></View>
                 <View style={st.awarenessScoreBars}>
                   {[
                     { label: isAr ? 'تواصل' : 'Chat', value: Math.min((awarenessScore.score / 100) * 30, 30), color: '#3B82F6' },
@@ -155,17 +172,13 @@ export default function TwinMindCenter() {
                     { label: isAr ? 'رابطة' : 'Bond', value: Math.min((awarenessScore.score / 100) * 25, 25), color: '#A855F7' },
                     { label: isAr ? 'عمق' : 'Depth', value: Math.min((awarenessScore.score / 100) * 20, 20), color: '#10B981' },
                   ].map((item, i) => (
-                    <View key={i} style={st.awarenessBarRow}>
-                      <Text style={[st.awarenessBarLabel, { color: colors.subtext }]}>{item.label}</Text>
-                      <View style={[st.awarenessBarBg, { backgroundColor: colors.border }]}><View style={[st.awarenessBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} /></View>
-                    </View>
+                    <View key={i} style={st.awarenessBarRow}><Text style={[st.awarenessBarLabel, { color: colors.subtext }]}>{item.label}</Text><View style={[st.awarenessBarBg, { backgroundColor: colors.border }]}><View style={[st.awarenessBarFill, { width: `${item.value}%`, backgroundColor: item.color }]} /></View></View>
                   ))}
                 </View>
               </View>
             </View>
           )}
 
-          {/* Notification Limits */}
           {notificationFreq && (
             <View style={[st.notifCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={st.cardHeader}><Bell size={18} stroke={colors.accent} /><Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'الإشعارات الاستباقية' : 'Proactive Notifications'}</Text></View>
@@ -181,8 +194,7 @@ export default function TwinMindCenter() {
 
           {awareness && (
             <TouchableOpacity style={[st.awarenessCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]} onPress={() => router.push('/chat')}>
-              <Lightbulb size={20} stroke={colors.accent} />
-              <View style={{ flex: 1 }}><Text style={[st.awarenessTitle, { color: colors.accent }]}>{awareness.title}</Text><Text style={[st.awarenessBody, { color: colors.subtext }]}>{awareness.body}</Text></View>
+              <Lightbulb size={20} stroke={colors.accent} /><View style={{ flex: 1 }}><Text style={[st.awarenessTitle, { color: colors.accent }]}>{awareness.title}</Text><Text style={[st.awarenessBody, { color: colors.subtext }]}>{awareness.body}</Text></View>
             </TouchableOpacity>
           )}
 
@@ -197,7 +209,6 @@ export default function TwinMindCenter() {
             </TouchableOpacity>
           </View>
 
-          {/* اختصارات واضحة للمستخدم الجديد */}
           <Text style={[st.sectionTitle, { color: colors.text }]}>{isAr ? 'قدرات وعيي' : 'My Mind Powers'}</Text>
           <View style={st.shortcutsGrid}>
             {[
@@ -207,24 +218,15 @@ export default function TwinMindCenter() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => router.push(item.route as any)}
-                >
-                  <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}>
-                    <Icon size={28} stroke={item.color} />
-                  </View>
-                  <Text style={[st.shortcutLabel, { color: colors.text }]}>
-                    {isAr ? item.label_ar : item.label_en}
-                  </Text>
+                <TouchableOpacity key={item.id} style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(item.route as any)}>
+                  <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}><Icon size={28} stroke={item.color} /></View>
+                  <Text style={[st.shortcutLabel, { color: colors.text }]}>{isAr ? item.label_ar : item.label_en}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
         </Animated.View>
       </ScrollView>
-
       <Modal visible={syncModalVisible} transparent animationType="slide" onRequestClose={() => setSyncModalVisible(false)}>
         <View style={st.modalOverlay}>
           <View style={[st.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -240,14 +242,15 @@ export default function TwinMindCenter() {
     </View>
   );
 }
-
 const st = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 16 },
   avatarCard: { alignItems: 'center', padding: 24, borderRadius: 24, borderWidth: 1, marginBottom: 20 },
   avatarGlow: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   avatarImg: { width: 80, height: 80, borderRadius: 40 },
-  twinName: { fontSize: 24, fontWeight: '800', marginBottom: 12 },
+  twinName: { fontSize: 24, fontWeight: '800', marginBottom: 6 },
+  moodBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, marginBottom: 10 },
+  moodText: { fontSize: 13, fontWeight: '600' },
   energyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '80%' },
   energyBar: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   energyFill: { height: '100%', borderRadius: 4 },
@@ -256,6 +259,12 @@ const st = StyleSheet.create({
   metricItem: { flex: 1, alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, gap: 4 },
   metricVal: { fontSize: 18, fontWeight: '800' },
   metricLabel: { fontSize: 10, fontWeight: '600' },
+  relationshipCard: { borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
+  relationshipRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 12 },
+  relationshipItem: { alignItems: 'center' },
+  relationshipValue: { fontSize: 18, fontWeight: '800' },
+  relationshipLabel: { fontSize: 11, fontWeight: '600' },
+  healthScore: { fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 4 },
   awarenessScoreCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 20 },
   awarenessScoreHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   awarenessScoreTitle: { fontSize: 16, fontWeight: '700' },

@@ -1,7 +1,7 @@
 """
-MyTwin API v17.0.0 – Living Digital Twin Backend
+MyTwin API v18.0.0 – Living Digital Twin Backend
 ==================================================
-نقطة دخول موحّدة مع Twin Brain و Awareness Score.
+نقطة دخول موحّدة مع Twin OS Kernel وجميع المحركات.
 """
 import logging, sys, os, time, importlib
 from pathlib import Path
@@ -13,7 +13,7 @@ sys.path.insert(0, str(BASE_DIR / 'app'))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(name)-25s | %(levelname)-8s | %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger("mytwin.api")
-logger.info("🚀 MyTwin API v17.0.0 starting...")
+logger.info("🚀 MyTwin API v18.0.0 starting...")
 
 from dotenv import load_dotenv
 load_dotenv(BASE_DIR / '.env')
@@ -45,10 +45,51 @@ async def lifespan(app: FastAPI):
     except ImportError:
         logger.warning("⚠️ Memory Repo not available")
 
-    # Init Twin Brain – العقل الموحد
+    # Init Twin Brain
     logger.info("🧠 Initializing Twin Brain...")
     from app.twin_brain.brain_orchestrator import twin_brain
     await twin_brain.initialize()
+
+    # Init Internal State
+    logger.info("🧠 Initializing Twin Internal State...")
+    from app.twin_state.internal_state import twin_internal_state
+
+    # Init Relationship Economy
+    logger.info("💜 Initializing Relationship Economy...")
+    from app.twin_state.relationship_economy import relationship_economy
+
+    # Init Dynamic Personality
+    logger.info("🎭 Initializing Dynamic Personality...")
+    from app.twin_state.dynamic_personality import dynamic_personality
+
+    # Init Twin Goals
+    logger.info("🎯 Initializing Twin Goals...")
+    from app.twin_state.twin_goals import twin_goals
+
+    # Init Proactive Intelligence
+    logger.info("🔮 Initializing Proactive Intelligence...")
+    from app.twin_state.proactive_intelligence import proactive_intelligence
+
+    # Init Memory Ranker
+    logger.info("📊 Initializing Memory Ranker...")
+    from app.memory.importance.memory_ranker import memory_ranker
+
+    # Init Working Memory
+    logger.info("🧠 Initializing Working Memory...")
+    from app.twin_state.working_memory import working_memory
+
+    # Init Emotion Bus
+    logger.info("💫 Initializing Emotion Bus...")
+    from app.twin_state.emotion_bus import emotion_bus
+
+    # Init Twin OS Kernel
+    logger.info("🧬 Initializing Twin OS Kernel...")
+    from app.twin_state.twin_kernel import twin_kernel
+    await twin_kernel.initialize()
+
+    # Init Twin Learner
+    logger.info("📚 Initializing Twin Learner...")
+    from app.twin_state.twin_learner import twin_learner
 
     # Init Proactive Awareness
     logger.info("🧠 Initializing Proactive Awareness System...")
@@ -85,7 +126,7 @@ async def lifespan(app: FastAPI):
     _register_core_routes(app)
 
     total = len(feature_registry.get_all_plugins())
-    logger.info(f"🌟 MyTwin API v17.0.0 fully started with {total} plugins + Twin Brain + Awareness Score")
+    logger.info(f"🌟 MyTwin API v18.0.0 fully started with {total} plugins + Twin OS Kernel + All Engines")
 
     yield
 
@@ -127,7 +168,9 @@ def _register_core_routes(app: FastAPI):
         "app.api.routes.sync_routes",
         "app.api.routes.consciousness_routes",
         "app.api.routes.tts",
-        "app.api.routes.awareness_score_routes",  # ✅ Awareness Score API
+        "app.api.routes.awareness_score_routes",
+        "app.api.routes.twin_state_routes",
+        "app.api.routes.relationship_economy_routes",
     ]
     loaded = 0
     for module_path in core_modules:
@@ -140,8 +183,8 @@ def _register_core_routes(app: FastAPI):
     logger.info(f"   ✅ {loaded}/{len(core_modules)} core routes loaded")
 
 app = FastAPI(
-    title="MyTwin API", version="17.0.0",
-    description="Living Digital Twin – Twin Brain + Awareness Score",
+    title="MyTwin API", version="18.0.0",
+    description="Living Digital Twin – Twin OS Kernel",
     docs_url="/docs" if getattr(config, 'DEBUG', False) else None,
     redoc_url="/redoc" if getattr(config, 'DEBUG', False) else None,
     lifespan=lifespan,
@@ -163,7 +206,7 @@ async def log_requests(request: Request, call_next):
 async def root():
     from app.core.feature_registry import feature_registry
     plugins = feature_registry.list_plugins() if feature_registry.is_initialized else []
-    return {"name": "MyTwin API", "version": "17.0.0", "plugins_loaded": len(plugins), "plugins": plugins, "twin_brain": True, "awareness_score": True}
+    return {"name": "MyTwin API", "version": "18.0.0", "plugins_loaded": len(plugins), "plugins": plugins, "twin_brain": True, "twin_os_kernel": True}
 
 @app.get("/health")
 async def health():
@@ -172,7 +215,7 @@ async def health():
     if feature_registry.is_initialized:
         try: plugins_health = await feature_registry.health_check_all()
         except: pass
-    return JSONResponse(content={"api": "healthy", "twin_brain": True, "plugins": plugins_health})
+    return JSONResponse(content={"api": "healthy", "twin_os_kernel": True, "plugins": plugins_health})
 
 if __name__ == "__main__":
     import uvicorn

@@ -82,11 +82,19 @@ export default function FeaturesHub() {
       await getUserStats();
       const store = useTwinStore.getState();
       setUsageStats(store.userStats || {});
-    } catch (e) { setUsageStats(null); }
-    finally { setLoadingStats(false); setRefreshing(false); Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(); }
+    } catch (e) {
+      setUsageStats(null);
+    } finally {
+      setLoadingStats(false);
+      setRefreshing(false);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    }
   }, [getUserStats]);
 
-  useEffect(() => { fetchStats(); pluginRegistry.loadFromBackend(); }, []);
+  useEffect(() => {
+    fetchStats();
+    try { pluginRegistry.loadFromBackend(); } catch (e) {}
+  }, []);
 
   if (loadingStats) {
     return (
@@ -113,7 +121,6 @@ export default function FeaturesHub() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* بطاقة تعريفية */}
           <View style={[st.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[st.heroIcon, { backgroundColor: colors.accentLight }]}>
               <Eye size={36} stroke={colors.accent} />
@@ -122,7 +129,6 @@ export default function FeaturesHub() {
             <Text style={[st.heroSub, { color: colors.subtext }]}>{t.subdesc}</Text>
           </View>
 
-          {/* إحصائيات سريعة */}
           {usageStats && (
             <View style={[st.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {[
@@ -139,7 +145,6 @@ export default function FeaturesHub() {
             </View>
           )}
 
-          {/* شبكة القدرات */}
           <View style={st.grid}>
             {FEATURES.map((feature) => {
               const Icon = feature.icon;
@@ -147,7 +152,13 @@ export default function FeaturesHub() {
                 <TouchableOpacity
                   key={feature.id}
                   style={[st.card, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]}
-                  onPress={() => router.push(feature.route as any)}
+                  onPress={() => {
+                    try {
+                      router.push(feature.route as any);
+                    } catch (e) {
+                      console.warn('Navigation failed:', e);
+                    }
+                  }}
                   activeOpacity={0.85}
                 >
                   <View style={[st.cardIcon, { backgroundColor: feature.color + '15' }]}>
