@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MyTwin",
-    "slug": "my-twin-pro",
+    "slug": "my-twin",
     "scheme": "mytwin",
     "version": "16.0.0",
     "orientation": "portrait",
@@ -89,7 +89,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "b5e2baa3-6015-40a5-9f31-115298d3b0c9"
+        "projectId": "b3a5e167-a18c-4ed5-b929-5e84f8356bce"
       },
       "cli": {
         "appVersionSource": "local"
@@ -101,7 +101,7 @@
     "updates": {
       "url": "https://u.expo.dev/b5e2baa3-6015-40a5-9f31-115298d3b0c9"
     },
-    "owner": "mohamed101",
+    "owner": "soulsync.9",
     "sdkVersion": "52.0.0",
     "jsEngine": "hermes"
   }
