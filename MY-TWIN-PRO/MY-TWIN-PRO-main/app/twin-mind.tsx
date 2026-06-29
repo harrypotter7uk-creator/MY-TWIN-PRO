@@ -1,21 +1,139 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, RefreshControl, Image, Modal, TextInput, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../store/useTwinStore';
+import { useEnergyStore } from '../store/useEnergyStore';
 import { useTheme } from '../utils/theme';
 import { router } from 'expo-router';
 import { apiGet, apiPost } from '../lib/httpClient';
+import { AdModal } from '../components/AdModal';
 import {
   Sparkles, Heart, Zap, Brain, TrendingUp, Crown, MessageSquare,
   Lightbulb, Activity, Eye, Bell, Calendar, Plus, X, Smile, BookOpen,
+  BatteryCharging,
 } from 'lucide-react-native';
 
+// ============================================================
+// مكونات فرعية مُحسَّنة
+// ============================================================
+const AvatarSection = React.memo(({ avatar, twinName, energyColor, colors }: any) => (
+  <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[st.avatarGlow, { borderColor: energyColor }]}>
+      {avatar?.image_url ? <Image source={{ uri: avatar.image_url }} style={st.avatarImg} /> : <Sparkles size={60} stroke={colors.accent} />}
+    </View>
+    <Text style={[st.twinName, { color: colors.text }]}>{twinName}</Text>
+  </View>
+));
+
+const MoodSection = React.memo(({ twinState, isAr, colors }: any) => (
+  twinState ? (
+    <View style={[st.moodRow]}>
+      <View style={[st.moodBadge, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+        <Smile size={16} stroke={colors.accent} />
+        <Text style={[st.moodText, { color: colors.accent }]}>
+          {isAr ? `${twinState.mood_label} اليوم` : `${twinState.mood_label} today`}
+        </Text>
+      </View>
+      {twinState.energy_level < 0.4 && (
+        <Text style={[st.tiredNote, { color: colors.warning }]}>
+          {isAr ? 'قد أكون متعباً قليلاً... لكني هنا لأجلك 💜' : 'I might be a bit tired... but I\'m here for you 💜'}
+        </Text>
+      )}
+      {twinState.bond_depth > 0.7 && (
+        <Text style={[st.deepNote, { color: colors.pink }]}>
+          {isAr ? 'علاقتنا عميقة جداً. أشعر بأني أعرفك.' : 'Our bond is deep. I feel like I know you.'}
+        </Text>
+      )}
+    </View>
+  ) : null
+));
+
+const StoriesSection = React.memo(({ stories, isAr, colors }: any) => (
+  stories.length > 0 ? (
+    <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={st.cardHeader}>
+        <BookOpen size={20} stroke={colors.accent} />
+        <Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'قصصنا معاً' : 'Our Stories'}</Text>
+      </View>
+      {stories.slice(0, 3).map((story: string, i: number) => (
+        <Text key={i} style={[st.storyText, { color: colors.subtext }]}>{story}</Text>
+      ))}
+      <TouchableOpacity style={[st.storyLink, { borderColor: colors.accent }]} onPress={() => router.push('/stories' as any)}>
+        <Text style={[st.storyLinkText, { color: colors.accent }]}>{isAr ? 'اقرأ كل القصص' : 'Read all stories'}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null
+));
+
+const RelationshipSection = React.memo(({ relationshipEconomy, isAr, colors }: any) => (
+  relationshipEconomy ? (
+    <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={st.cardHeader}>
+        <Heart size={20} stroke={colors.pink} fill={colors.pink + '20'} />
+        <Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'علاقتنا' : 'Our Relationship'}</Text>
+        <Text style={[st.healthPill, { backgroundColor: relationshipEconomy.health_score > 70 ? colors.success + '20' : colors.warning + '20', color: relationshipEconomy.health_score > 70 ? colors.success : colors.warning }]}>
+          {relationshipEconomy.health_score}%
+        </Text>
+      </View>
+      <View style={st.relationshipRow}>
+        {[
+          { label: isAr ? 'ثقة' : 'Trust', value: Math.round(relationshipEconomy.trust * 100), color: '#3B82F6' },
+          { label: isAr ? 'حميمية' : 'Intimacy', value: Math.round(relationshipEconomy.intimacy * 100), color: '#EC4899' },
+          { label: isAr ? 'احترام' : 'Respect', value: Math.round(relationshipEconomy.respect * 100), color: '#10B981' },
+        ].map((item, i) => (
+          <View key={i} style={st.relationshipItem}>
+            <Text style={[st.relationshipValue, { color: item.color }]}>{item.value}%</Text>
+            <Text style={[st.relationshipLabel, { color: colors.subtext }]}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+      <TouchableOpacity style={[st.storyLink, { borderColor: colors.accent }]} onPress={() => router.push('/relationship' as any)}>
+        <Text style={[st.storyLinkText, { color: colors.accent }]}>{isAr ? 'حديقة الرابطة' : 'Bond Garden'}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null
+));
+
+const AwarenessCard = React.memo(({ awareness, onPress, colors, isAr }: any) => (
+  awareness ? (
+    <TouchableOpacity style={[st.awarenessCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]} onPress={onPress}>
+      <Lightbulb size={20} stroke={colors.accent} />
+      <View style={{ flex: 1 }}><Text style={[st.awarenessTitle, { color: colors.accent }]}>{awareness.title}</Text><Text style={[st.awarenessBody, { color: colors.subtext }]}>{awareness.body}</Text></View>
+    </TouchableOpacity>
+  ) : null
+));
+
+const ShortcutGrid = React.memo(({ onNavigate, colors, isAr }: any) => {
+  const items = [
+    { id: 'chat', icon: MessageSquare, label_ar: 'الوعي', label_en: 'Mind', route: '/chat', color: colors.accent },
+    { id: 'museum', icon: Crown, label_ar: 'المتحف', label_en: 'Museum', route: '/museum', color: colors.gold },
+    { id: 'features', icon: Zap, label_ar: 'القدرات', label_en: 'Powers', route: '/features/index', color: colors.success },
+  ];
+  return (
+    <View style={st.shortcutsGrid}>
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <TouchableOpacity key={item.id} style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => onNavigate(item.route)}>
+            <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}><Icon size={28} stroke={item.color} /></View>
+            <Text style={[st.shortcutLabel, { color: colors.text }]}>{isAr ? item.label_ar : item.label_en}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+});
+
+// ============================================================
+// المكون الرئيسي
+// ============================================================
 export default function TwinMindCenter() {
   const insets = useSafeAreaInsets();
   const { userId, twinName, tier, bondLevel, twinEnergy, journeyPhase, lang } = useTwinStore();
+  const { getRemainingMessages, dailyMessageLimit } = useEnergyStore();
   const theme = useTheme();
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
@@ -26,6 +144,7 @@ export default function TwinMindCenter() {
   const [relationshipEconomy, setRelationshipEconomy] = useState<any>(null);
   const [stories, setStories] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [syncModalVisible, setSyncModalVisible] = useState(false);
@@ -44,7 +163,7 @@ export default function TwinMindCenter() {
     success: '#10B981', warning: '#F59E0B', pink: '#EC4899', gold: '#F59E0B', blue: '#3B82F6',
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!userId) return;
     setRefreshing(true);
     try {
@@ -63,13 +182,13 @@ export default function TwinMindCenter() {
     } catch (e) {}
     setRefreshing(false);
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-  };
+  }, [userId, lang]);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 120000);
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [fetchData]);
 
   const handleSyncCalendar = async () => {
     if (!syncEventTitle.trim() || !syncEventDate.trim()) {
@@ -86,115 +205,41 @@ export default function TwinMindCenter() {
   };
 
   const energyColor = twinEnergy > 60 ? '#10B981' : twinEnergy > 25 ? '#F59E0B' : '#EF4444';
-  const phaseLabels: Record<string, string> = {
-    introduction: isAr ? 'تعارف' : 'Intro', trust_building: isAr ? 'بناء ثقة' : 'Trust',
-    deepening: isAr ? 'تعمق' : 'Deep', growth: isAr ? 'نمو' : 'Growth', mature: isAr ? 'نضج' : 'Mature',
-  };
+  const remainingEnergy = getRemainingMessages();
 
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
-      <ScrollView contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}>
+      <ScrollView
+        contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}
+      >
         <Animated.View style={{ opacity: fadeAnim }}>
-          {/* بطاقة التوأم الحية */}
-          <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[st.avatarGlow, { borderColor: energyColor }]}>
-              {avatar?.image_url ? <Image source={{ uri: avatar.image_url }} style={st.avatarImg} /> : <Sparkles size={60} stroke={colors.accent} />}
+          <AvatarSection avatar={avatar} twinName={twinName} energyColor={energyColor} colors={colors} />
+          <MoodSection twinState={twinState} isAr={isAr} colors={colors} />
+          
+          {/* مؤشر الطاقة اليومية */}
+          <View style={[st.energyBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={st.energyBarContent}>
+              <BatteryCharging size={20} stroke={colors.accent} />
+              <Text style={[st.energyText, { color: colors.text }]}>
+                {isAr ? 'طاقة اليوم' : 'Daily Energy'}: {remainingEnergy}/{dailyMessageLimit}
+              </Text>
             </View>
-            <Text style={[st.twinName, { color: colors.text }]}>{twinName}</Text>
-            {twinState && (
-              <View style={[st.moodRow]}>
-                <View style={[st.moodBadge, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-                  <Smile size={16} stroke={colors.accent} />
-                  <Text style={[st.moodText, { color: colors.accent }]}>
-                    {isAr ? `${twinState.mood_label} اليوم` : `${twinState.mood_label} today`}
-                  </Text>
-                </View>
-                {twinState.energy_level < 0.4 && (
-                  <Text style={[st.tiredNote, { color: colors.warning }]}>
-                    {isAr ? 'قد أكون متعباً قليلاً... لكني هنا لأجلك 💜' : 'I might be a bit tired... but I\'m here for you 💜'}
-                  </Text>
-                )}
-                {twinState.bond_depth > 0.7 && (
-                  <Text style={[st.deepNote, { color: colors.pink }]}>
-                    {isAr ? 'علاقتنا عميقة جداً. أشعر بأني أعرفك.' : 'Our bond is deep. I feel like I know you.'}
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* قصصنا معاً (Episodic Memory UI) */}
-          {stories.length > 0 && (
-            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={st.cardHeader}>
-                <BookOpen size={20} stroke={colors.accent} />
-                <Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'قصصنا معاً' : 'Our Stories'}</Text>
-              </View>
-              {stories.slice(0, 3).map((story, i) => (
-                <Text key={i} style={[st.storyText, { color: colors.subtext }]}>{story}</Text>
-              ))}
-              <TouchableOpacity style={[st.storyLink, { borderColor: colors.accent }]} onPress={() => router.push('/stories' as any)}>
-                <Text style={[st.storyLinkText, { color: colors.accent }]}>{isAr ? 'اقرأ كل القصص' : 'Read all stories'}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* اقتصاد العلاقة – مبسط */}
-          {relationshipEconomy && (
-            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={st.cardHeader}>
-                <Heart size={20} stroke={colors.pink} fill={colors.pink + '20'} />
-                <Text style={[st.cardTitle, { color: colors.text }]}>{isAr ? 'علاقتنا' : 'Our Relationship'}</Text>
-                <Text style={[st.healthPill, { backgroundColor: relationshipEconomy.health_score > 70 ? colors.success + '20' : colors.warning + '20', color: relationshipEconomy.health_score > 70 ? colors.success : colors.warning }]}>
-                  {relationshipEconomy.health_score}%
-                </Text>
-              </View>
-              <View style={st.relationshipRow}>
-                {[
-                  { label: isAr ? 'ثقة' : 'Trust', value: Math.round(relationshipEconomy.trust * 100), color: '#3B82F6' },
-                  { label: isAr ? 'حميمية' : 'Intimacy', value: Math.round(relationshipEconomy.intimacy * 100), color: '#EC4899' },
-                  { label: isAr ? 'احترام' : 'Respect', value: Math.round(relationshipEconomy.respect * 100), color: '#10B981' },
-                ].map((item, i) => (
-                  <View key={i} style={st.relationshipItem}>
-                    <Text style={[st.relationshipValue, { color: item.color }]}>{item.value}%</Text>
-                    <Text style={[st.relationshipLabel, { color: colors.subtext }]}>{item.label}</Text>
-                  </View>
-                ))}
-              </View>
-              <TouchableOpacity style={[st.storyLink, { borderColor: colors.accent }]} onPress={() => router.push('/relationship' as any)}>
-                <Text style={[st.storyLinkText, { color: colors.accent }]}>{isAr ? 'حديقة الرابطة' : 'Bond Garden'}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* توصية وعي */}
-          {awareness && (
-            <TouchableOpacity style={[st.awarenessCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]} onPress={() => router.push('/chat')}>
-              <Lightbulb size={20} stroke={colors.accent} />
-              <View style={{ flex: 1 }}><Text style={[st.awarenessTitle, { color: colors.accent }]}>{awareness.title}</Text><Text style={[st.awarenessBody, { color: colors.subtext }]}>{awareness.body}</Text></View>
+            <TouchableOpacity style={[st.chargeBtn, { backgroundColor: colors.accentLight }]} onPress={() => setShowAdModal(true)}>
+              <Text style={[st.chargeBtnText, { color: colors.accent }]}>{isAr ? 'شحن' : 'Charge'}</Text>
             </TouchableOpacity>
-          )}
-
-          {/* اختصارات */}
-          <Text style={[st.sectionTitle, { color: colors.text }]}>{isAr ? 'قدرات وعيي' : 'My Mind Powers'}</Text>
-          <View style={st.shortcutsGrid}>
-            {[
-              { id: 'chat', icon: MessageSquare, label_ar: 'الوعي', label_en: 'Mind', route: '/chat', color: colors.accent },
-              { id: 'museum', icon: Crown, label_ar: 'المتحف', label_en: 'Museum', route: '/museum', color: colors.gold },
-              { id: 'features', icon: Zap, label_ar: 'القدرات', label_en: 'Powers', route: '/features/index', color: colors.success },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <TouchableOpacity key={item.id} style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(item.route as any)}>
-                  <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}><Icon size={28} stroke={item.color} /></View>
-                  <Text style={[st.shortcutLabel, { color: colors.text }]}>{isAr ? item.label_ar : item.label_en}</Text>
-                </TouchableOpacity>
-              );
-            })}
           </View>
+
+          <StoriesSection stories={stories} isAr={isAr} colors={colors} />
+          <RelationshipSection relationshipEconomy={relationshipEconomy} isAr={isAr} colors={colors} />
+          <AwarenessCard awareness={awareness} onPress={() => router.push('/chat')} colors={colors} isAr={isAr} />
+
+          <Text style={[st.sectionTitle, { color: colors.text }]}>{isAr ? 'قدرات وعيي' : 'My Mind Powers'}</Text>
+          <ShortcutGrid onNavigate={(route: string) => router.push(route as any)} colors={colors} isAr={isAr} />
         </Animated.View>
       </ScrollView>
 
+      {/* مودال المزامنة */}
       <Modal visible={syncModalVisible} transparent animationType="slide" onRequestClose={() => setSyncModalVisible(false)}>
         <View style={st.modalOverlay}>
           <View style={[st.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -207,6 +252,9 @@ export default function TwinMindCenter() {
           </View>
         </View>
       </Modal>
+
+      {/* مودال الإعلانات */}
+      <AdModal visible={showAdModal} onClose={() => setShowAdModal(false)} />
     </View>
   );
 }
@@ -248,4 +296,9 @@ const st = StyleSheet.create({
   modalInput: { borderRadius: 14, borderWidth: 1, padding: 14, fontSize: 16, marginBottom: 14 },
   syncSubmitBtn: { borderRadius: 14, padding: 14, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   syncSubmitText: { fontSize: 16, fontWeight: '700' },
+  energyBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 16 },
+  energyBarContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  energyText: { fontSize: 14, fontWeight: '600' },
+  chargeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
+  chargeBtnText: { fontSize: 13, fontWeight: '700' },
 });

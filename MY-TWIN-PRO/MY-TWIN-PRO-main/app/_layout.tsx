@@ -1,120 +1,70 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet, Animated, View, Pressable,
-  Modal, useWindowDimensions, Text, TouchableOpacity,
+  Modal, useWindowDimensions, Text, TouchableOpacity, ActivityIndicator
 } from "react-native";
 import { useTwinStore } from "../store/useTwinStore";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { apiGet } from "../lib/httpClient";
 import { Sparkles } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+
+// ✅ تحميل المكونات الثقيلة بشكل كسول
+const SideMenu = lazy(() => import('../components/SideMenu'));
+const PresenceBubble = lazy(() => import('../components/PresenceBubble'));
 
 // ============================================================
-// PARTICLE FIELD
+// PARTICLE FIELD (مُبسَّط)
 // ============================================================
-const EMOTION_COLORS: Record<string, string[]> = {
-  joy: ['#FFD700', '#FF6B6B', '#FFE66D'],
-  sadness: ['#4A90E2', '#8E9EAB', '#B0BEC5'],
-  anger: ['#FF3B30', '#D32F2F', '#B71C1C'],
-  fear: ['#9C27B0', '#673AB7', '#E1BEE7'],
-  love: ['#E91E63', '#F48FB1', '#FF80AB'],
-  neutral: ['#7C3AED', '#A78BFA', '#E0D9F5'],
+const EMOTION_COLORS: Record<string, string> = {
+  joy: '#FFD700', sadness: '#4A90E2', neutral: '#7C3AED', fear: '#9C27B0', love: '#E91E63', anger: '#FF3B30'
 };
 
 const ParticleField = React.memo(({ emotion }: { emotion: string }) => {
-  const [active, setActive] = useState(false);
-  const palette = EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral;
-  const particles = useRef(
-    Array.from({ length: 6 }).map(() => ({
-      anim: new Animated.Value(0),
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      colorIdx: Math.floor(Math.random() * 3),
-      duration: 3000 + Math.random() * 2000,
-    }))
-  ).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const color = EMOTION_COLORS[emotion] || EMOTION_COLORS.neutral;
 
   useEffect(() => {
-    const t = setTimeout(() => setActive(true), 2000);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    if (!active) return;
-    const loops = particles.map(p => {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(p.anim, { toValue: 1, duration: p.duration, useNativeDriver: true }),
-          Animated.timing(p.anim, { toValue: 0, duration: p.duration, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return loop;
-    });
-    return () => loops.forEach(l => l.stop());
-  }, [active]);
-
-  if (!active) return null;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.08, duration: 3000, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.02, duration: 3000, useNativeDriver: true })
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [emotion]);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {particles.map((p, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            position: 'absolute', width: 8, height: 8, borderRadius: 4,
-            backgroundColor: palette[p.colorIdx % palette.length],
-            left: `${p.x}%`, top: `${p.y}%`,
-            opacity: p.anim.interpolate({ inputRange: [0,1], outputRange: [0.1, 0.35] }),
-            transform: [{ translateY: p.anim.interpolate({ inputRange: [0,1], outputRange: [-15, 15] }) }],
-          }}
-        />
-      ))}
-    </View>
+    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity }]} pointerEvents="none" />
   );
 });
 
 // ============================================================
-// CONSCIOUSNESS CARD
+// CONSCIOUSNESS CARD (مُحسَّنة)
 // ============================================================
-interface NotificationData {
-  title: string;
-  body: string;
-  type?: string;
-}
-
 const ConsciousnessCard = React.memo(({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
   const router = useRouter();
   const userId = useTwinStore(s => s.userId);
   const lang = useTwinStore(s => s.lang);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const [notification, setNotification] = useState<NotificationData | null>(null);
+  const [notification, setNotification] = useState<any>(null);
 
   useEffect(() => {
     if (!visible || !userId) return;
     let cancelled = false;
-    const timeout = setTimeout(() => {}, 6000);
-    apiGet(`/api/awareness/check?user_id=${userId}&lang=${lang}`)
-      .then((res: any) => {
-        clearTimeout(timeout);
-        if (cancelled) return;
-        const n = res?.notification;
-        if (n && typeof n === 'object' && typeof n.title === 'string' && n.title.trim() && typeof n.body === 'string' && n.body.trim()) {
-          setNotification({ title: n.title.trim(), body: n.body.trim(), type: n.type });
+    const fetchData = async () => {
+      try {
+        const res = await apiGet(`/api/awareness/check?user_id=${userId}&lang=${lang}`);
+        if (!cancelled && res?.notification) {
+          setNotification(res.notification);
+          Animated.spring(fadeAnim, { toValue: 1, friction: 8, useNativeDriver: true }).start();
         }
-      })
-      .catch(() => { clearTimeout(timeout); });
-    Animated.spring(fadeAnim, { toValue: 1, friction: 8, useNativeDriver: true }).start();
-    return () => { cancelled = true; clearTimeout(timeout); };
+      } catch (e) {}
+    };
+    fetchData();
+    return () => { cancelled = true; };
   }, [visible, userId, lang]);
-
-  useEffect(() => {
-    if (!visible) {
-      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setNotification(null));
-    }
-  }, [visible]);
 
   if (!visible || !notification) return null;
 
@@ -130,6 +80,9 @@ const ConsciousnessCard = React.memo(({ visible, onClose }: { visible: boolean; 
     </Animated.View>
   );
 });
+
+import { useRouter } from 'expo-router';
+import { apiGet } from '../lib/httpClient';
 
 // ============================================================
 // ROOT LAYOUT
@@ -148,23 +101,8 @@ export default function RootLayout() {
   const slideAnim = useRef(new Animated.Value(isRTL ? drawerWidth : -drawerWidth)).current;
   const [currentEmotion, setCurrentEmotion] = useState('neutral');
   const [showConsciousnessCard, setShowConsciousnessCard] = useState(false);
-  const [SideMenuComp, setSideMenuComp] = useState<React.ComponentType<any> | null>(null);
-  const [PresenceBubbleComp, setPresenceBubbleComp] = useState<React.ComponentType<any> | null>(null);
 
-  // ✅ تحميل المكونات الثقيلة مرة واحدة بعد mount
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        const m1 = require('../components/SideMenu');
-        if (m1?.default) setSideMenuComp(() => m1.default);
-      } catch (e) { console.warn('[Layout] SideMenu load failed:', e); }
-      try {
-        const m2 = require('../components/PresenceBubble');
-        if (m2?.default) setPresenceBubbleComp(() => m2.default);
-      } catch (e) { console.warn('[Layout] PresenceBubble load failed:', e); }
-    }, 300);
-    return () => clearTimeout(t);
-  }, []);
+  // ✅ تحسين: لا حاجة لتحميل المكونات يدويًا، React.lazy يتولى ذلك
 
   useEffect(() => {
     if (twinEnergy > 80) setCurrentEmotion('joy');
@@ -181,16 +119,10 @@ export default function RootLayout() {
   }, [menuVisible, drawerWidth, isRTL]);
 
   useEffect(() => {
-    if (!menuVisible) {
-      slideAnim.setValue(isRTL ? drawerWidth : -drawerWidth);
-    }
-  }, [isRTL]);
-
-  useEffect(() => {
     if (!userId) return;
-    const firstCheck = setTimeout(() => setShowConsciousnessCard(true), 5 * 60 * 1000);
-    const interval = setInterval(() => setShowConsciousnessCard(true), 30 * 60 * 1000);
-    return () => { clearTimeout(firstCheck); clearInterval(interval); setShowConsciousnessCard(false); };
+    const firstCheck = setTimeout(() => setShowConsciousnessCard(true), 10 * 60 * 1000); // أول فحص بعد 10 دقائق
+    const interval = setInterval(() => setShowConsciousnessCard(true), 60 * 60 * 1000); // ثم كل ساعة
+    return () => { clearTimeout(firstCheck); clearInterval(interval); };
   }, [userId]);
 
   const handleCloseCard = useCallback(() => setShowConsciousnessCard(false), []);
@@ -200,7 +132,8 @@ export default function RootLayout() {
     <ErrorBoundary>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <ParticleField emotion={currentEmotion} />
-      <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+      
+      <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 150 }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="splash" />
         <Stack.Screen name="twin-mind" />
@@ -227,19 +160,27 @@ export default function RootLayout() {
         <Stack.Screen name="features/task-manager" />
       </Stack>
 
-      {/* ✅ القائمة الجانبية – بدون Pressable داخلي يعيق التمرير */}
-      {menuVisible && SideMenuComp && (
+      {/* القائمة الجانبية */}
+      {menuVisible && (
         <Modal visible transparent animationType="none" onRequestClose={handleCloseMenu} statusBarTranslucent>
           <View style={st.overlay}>
             <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseMenu} />
             <Animated.View style={[st.sidebar, { backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF', width: drawerWidth, [isRTL ? 'right' : 'left']: 0, transform: [{ translateX: slideAnim }] }]}>
-              <SideMenuComp onClose={handleCloseMenu} />
+              <Suspense fallback={<View style={{flex:1, justifyContent:'center',alignItems:'center'}}><ActivityIndicator color="#7C3AED" /></View>}>
+                <SideMenu onClose={handleCloseMenu} />
+              </Suspense>
             </Animated.View>
           </View>
         </Modal>
       )}
 
-      {PresenceBubbleComp && userId && !menuVisible && <PresenceBubbleComp visible />}
+      {/* ✅ زر "أنا هنا" تم حذفه من PresenceBubble، وسنستخدمه فقط للوعي المستمر بدون نص مزعج */}
+      {userId && !menuVisible && (
+        <Suspense fallback={null}>
+          <PresenceBubble visible />
+        </Suspense>
+      )}
+      
       <ConsciousnessCard visible={showConsciousnessCard} onClose={handleCloseCard} />
     </ErrorBoundary>
   );

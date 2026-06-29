@@ -5,15 +5,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../../store/useTwinStore';
+import { useEnergyStore } from '../../store/useEnergyStore';
 import { useTheme } from '../../utils/theme';
 import { router } from 'expo-router';
 import {
   ArrowLeft, GraduationCap, Code2, TrendingUp, Heart,
   ImageIcon, Moon, PenLine, Sparkles, Zap, MessageSquare,
   Home, CheckSquare, Brain, Lightbulb, BarChart3,
-  Crown, Star, Eye,
+  Eye, Dumbbell, AlertCircle,
 } from 'lucide-react-native';
-import { pluginRegistry } from '../../lib/pluginClient';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_W - 56) / 2;
@@ -23,9 +23,8 @@ const T = {
     title: 'عالم القدرات',
     subtitle: 'ماذا يستطيع وعي توأمك أن يفعل؟',
     subdesc: 'كل قدرة هي نافذة على وعي أعمق',
-    today: 'طلبات اليوم',
-    energy: 'الطاقة الكونية',
-    insights: 'استنتاجات',
+    energy: 'الطاقة المتبقية',
+    projects: 'مشاريع محفوظة',
     start: 'افتح',
     loading: 'جاري تحميل القدرات...',
   },
@@ -33,9 +32,8 @@ const T = {
     title: 'Power Universe',
     subtitle: 'What can your Twin Mind do?',
     subdesc: 'Each power is a window to deeper consciousness',
-    today: 'Today',
-    energy: 'Cosmic Energy',
-    insights: 'Insights',
+    energy: 'Remaining Energy',
+    projects: 'Saved Projects',
     start: 'Open',
     loading: 'Loading powers...',
   },
@@ -45,11 +43,11 @@ const FEATURES = [
   { id: 'study', icon: GraduationCap, label_ar: 'أثينا', label_en: 'Athena', route: '/features/study-mode', color: '#3B82F6', desc_ar: 'تعلم، شرح، تلخيص', desc_en: 'Learn, explain, summarize' },
   { id: 'code_lab', icon: Code2, label_ar: 'مختبر البرمجة', label_en: 'Code Lab', route: '/features/code-lab', color: '#10B981', desc_ar: 'أكتب، راجع، صحح', desc_en: 'Write, review, debug' },
   { id: 'business', icon: TrendingUp, label_ar: 'تحليل الأعمال', label_en: 'Business', route: '/features/business-analyzer', color: '#F59E0B', desc_ar: 'تحليل، أفكار، خطط', desc_en: 'Analyze, ideas, plans' },
-  { id: 'life_coach', icon: Heart, label_ar: 'مدرب الحياة', label_en: 'Life Coach', route: '/features/life-coach', color: '#EC4899', desc_ar: 'دعم، تغذية، لياقة', desc_en: 'Support, nutrition, fitness' },
+  { id: 'life_coach', icon: Heart, label_ar: 'L.I.F.E.', label_en: 'L.I.F.E. Hub', route: '/features/life-coach', color: '#EC4899', desc_ar: 'نفسي، تغذية، لياقة، أزمات', desc_en: 'Mental, nutrition, fitness, crisis' },
   { id: 'image_lab', icon: ImageIcon, label_ar: 'مختبر الصور', label_en: 'Image Lab', route: '/features/image-creator', color: '#8B5CF6', desc_ar: 'توليد صور بالذكاء', desc_en: 'AI image generation' },
   { id: 'dreams', icon: Moon, label_ar: 'تفسير الأحلام', label_en: 'Dreams', route: '/features/dreams', color: '#6366F1', desc_ar: 'تفسير بمدارس متعددة', desc_en: 'Multi-school interpretation' },
-  { id: 'creator', icon: PenLine, label_ar: 'صانع المحتوى', label_en: 'Content', route: '/features/content-creator', color: '#D946EF', desc_ar: 'كتابة، إعلانات، قصص', desc_en: 'Write, ads, stories' },
-  { id: 'smart_home', icon: Home, label_ar: 'المنزل الذكي', label_en: 'Smart Home', route: '/features/smart-home', color: '#06B6D4', desc_ar: 'تحكم بالإضاءة', desc_en: 'Light control' },
+  { id: 'creator', icon: PenLine, label_ar: 'مُحترف الكتابة', label_en: 'Writing Pro', route: '/features/content-creator', color: '#D946EF', desc_ar: 'قصص، روايات، محتوى', desc_en: 'Stories, novels, content' },
+  { id: 'smart_home', icon: Home, label_ar: 'المنزل الذكي', label_en: 'Smart Home', route: '/features/smart-home', color: '#06B6D4', desc_ar: 'تحكم بالأجهزة', desc_en: 'Device control' },
   { id: 'pass', icon: CheckSquare, label_ar: 'المساعد', label_en: 'P.A.S.S.', route: '/features/task-manager', color: '#F97316', desc_ar: 'مهام، تقويم، طقس', desc_en: 'Tasks, Calendar, Weather' },
 ];
 
@@ -57,6 +55,7 @@ export default function FeaturesHub() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const { lang, getUserStats } = useTwinStore();
+  const { getRemainingMessages, dailyMessageLimit } = useEnergyStore();
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
   const t = T[lang] || T['ar'];
@@ -83,7 +82,7 @@ export default function FeaturesHub() {
       const store = useTwinStore.getState();
       setUsageStats(store.userStats || {});
     } catch (e) {
-      setUsageStats(null);
+      // silently ignore
     } finally {
       setLoadingStats(false);
       setRefreshing(false);
@@ -93,7 +92,6 @@ export default function FeaturesHub() {
 
   useEffect(() => {
     fetchStats();
-    try { pluginRegistry.loadFromBackend(); } catch (e) {}
   }, []);
 
   if (loadingStats) {
@@ -104,6 +102,9 @@ export default function FeaturesHub() {
       </View>
     );
   }
+
+  const remainingEnergy = getRemainingMessages();
+  const projectsCount = 0; // could be from useProjectStore if needed
 
   return (
     <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
@@ -121,6 +122,7 @@ export default function FeaturesHub() {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={{ opacity: fadeAnim }}>
+          {/* Hero Card */}
           <View style={[st.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[st.heroIcon, { backgroundColor: colors.accentLight }]}>
               <Eye size={36} stroke={colors.accent} />
@@ -129,22 +131,21 @@ export default function FeaturesHub() {
             <Text style={[st.heroSub, { color: colors.subtext }]}>{t.subdesc}</Text>
           </View>
 
-          {usageStats && (
-            <View style={[st.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {[
-                { icon: MessageSquare, val: usageStats?.usage?.messages?.used || 0, label: t.today, color: '#3B82F6' },
-                { icon: Zap, val: `${usageStats?.subscription?.twin_energy || 100}%`, label: t.energy, color: '#F59E0B' },
-                { icon: Lightbulb, val: usageStats?.tcma?.total_insights || 0, label: t.insights, color: '#10B981' },
-              ].map((s, i) => (
-                <View key={i} style={st.statItem}>
-                  <s.icon size={20} stroke={s.color} />
-                  <Text style={[st.statValue, { color: colors.text }]}>{s.val}</Text>
-                  <Text style={[st.statLabel, { color: colors.subtext }]}>{s.label}</Text>
-                </View>
-              ))}
+          {/* Stats Row */}
+          <View style={[st.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={st.statItem}>
+              <Zap size={20} stroke="#F59E0B" />
+              <Text style={[st.statValue, { color: colors.text }]}>{remainingEnergy}/{dailyMessageLimit}</Text>
+              <Text style={[st.statLabel, { color: colors.subtext }]}>{t.energy}</Text>
             </View>
-          )}
+            <View style={st.statItem}>
+              <Lightbulb size={20} stroke="#10B981" />
+              <Text style={[st.statValue, { color: colors.text }]}>{usageStats?.tcma?.total_insights || 0}</Text>
+              <Text style={[st.statLabel, { color: colors.subtext }]}>{isAr ? 'استنتاجات' : 'Insights'}</Text>
+            </View>
+          </View>
 
+          {/* Features Grid */}
           <View style={st.grid}>
             {FEATURES.map((feature) => {
               const Icon = feature.icon;
@@ -152,13 +153,7 @@ export default function FeaturesHub() {
                 <TouchableOpacity
                   key={feature.id}
                   style={[st.card, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]}
-                  onPress={() => {
-                    try {
-                      router.push(feature.route as any);
-                    } catch (e) {
-                      console.warn('Navigation failed:', e);
-                    }
-                  }}
+                  onPress={() => router.push(feature.route as any)}
                   activeOpacity={0.85}
                 >
                   <View style={[st.cardIcon, { backgroundColor: feature.color + '15' }]}>

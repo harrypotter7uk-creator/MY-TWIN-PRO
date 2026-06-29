@@ -1,19 +1,15 @@
 """
-AI Gateway v1.0 – بوابة الذكاء الاصطناعي الموحدة
-====================================================
-تحل محل: provider_router, provider_router_internal, internal_model_provider.
-كل الميزات تتحدث مع هذه البوابة فقط. لا أحد يعرف تفاصيل المفاتيح أو النماذج.
+AI Gateway v2.0 – بوابة الذكاء الاصطناعي الموحدة (مرجع وحيد)
+=============================================================
+- دمج provider_router كلياً
+- جميع الميزات تتحدث مع هذه البوابة فقط
 """
-import os, logging, asyncio, random, time, aiohttp
+import os, logging, asyncio, random, aiohttp
 from typing import Tuple, Optional, List, Dict
-from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger("ai_gateway")
 
-# ============================================================
-# إدارة مفاتيح API (مركزية)
-# ============================================================
 class APIKeyManager:
     def __init__(self):
         self._keys: Dict[str, List[Dict]] = {
@@ -28,20 +24,26 @@ class APIKeyManager:
     def _load_keys(self):
         for var in ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"]:
             k = os.getenv(var, ""); 
-            if k: self._keys["gemini"].append({"key": k, "usage": 0, "failures": 0})
+            if k: self._keys["gemini"].append({"key": k, "usage": 0, "failures": 0, "last_error": None})
         for var in ["GEMINI_IMAGE_API_KEY", "GEMINI_IMAGE_API_KEY_2"]:
             k = os.getenv(var, ""); 
-            if k: self._keys["gemini_image"].append({"key": k, "usage": 0, "failures": 0})
+            if k: self._keys["gemini_image"].append({"key": k, "usage": 0, "failures": 0, "last_error": None})
         for var in ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3"]:
             k = os.getenv(var, ""); 
-            if k: self._keys["groq"].append({"key": k, "usage": 0, "failures": 0})
+            if k: self._keys["groq"].append({"key": k, "usage": 0, "failures": 0, "last_error": None})
         for var in ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2", "OPENROUTER_API_KEY_3"]:
             k = os.getenv(var, ""); 
-            if k: self._keys["openrouter"].append({"key": k, "usage": 0, "failures": 0})
+            if k: self._keys["openrouter"].append({"key": k, "usage": 0, "failures": 0, "last_error": None})
         for var in ["HUGGINGFACE_API_KEY", "HUGGINGFACE_API_KEY_2"]:
             k = os.getenv(var, ""); 
-            if k: self._keys["huggingface"].append({"key": k, "usage": 0, "failures": 0})
+            if k: self._keys["huggingface"].append({"key": k, "usage": 0, "failures": 0, "last_error": None})
         logger.info(f"🔑 AI Gateway Keys: G={len(self._keys['gemini'])}, Gi={len(self._keys['gemini_image'])}, Gr={len(self._keys['groq'])}, O={len(self._keys['openrouter'])}, HF={len(self._keys['huggingface'])}")
+
+    def _check_reset(self):
+        if datetime.now(timezone.utc) >= self._usage_reset_time:
+            for provider in self._keys:
+                for k in self._keys[provider]: k["usage"] = 0
+            self._usage_reset_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) + timedelta(days=1)
 
     def get_key(self, provider: str) -> Optional[str]:
         self._check_reset()
@@ -56,19 +58,10 @@ class APIKeyManager:
             return k["key"]
         return None
 
-    def _check_reset(self):
-        if datetime.now(timezone.utc) >= self._usage_reset_time:
-            for provider in self._keys:
-                for k in self._keys[provider]: k["usage"] = 0
-            self._usage_reset_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) + timedelta(days=1)
-
     def mark_failure(self, provider: str, key: str):
         for k in self._keys.get(provider, []):
             if k["key"] == key: k["failures"] += 1
 
-# ============================================================
-# توجيه المهام (Task Routing)
-# ============================================================
 TASK_ROUTING = {
     "coding": [
         {"provider": "huggingface", "model": "deepseek-ai/deepseek-coder-33b-instruct"},
@@ -110,10 +103,7 @@ class AIGateway:
         self.key_manager = APIKeyManager()
         self._hf_session = None
 
-    async def route(
-        self, prompt: str, task: str = "general", user_id: Optional[str] = None
-    ) -> Tuple[str, str]:
-        """التوجيه الذكي حسب المهمة مع احتياطيات محددة"""
+    async def route(self, prompt: str, task: str = "general", user_id: Optional[str] = None) -> Tuple[str, str]:
         routing = TASK_ROUTING.get(task, TASK_ROUTING["general"])
         for entry in routing:
             provider = entry["provider"]
@@ -136,6 +126,13 @@ class AIGateway:
                 logger.warning(f"⚠️ {provider}/{model} failed: {e}")
                 self.key_manager.mark_failure(provider, key)
         raise Exception("All AI providers exhausted")
+
+    async def generate(self, prompt: str, language: str = "ar", task: str = "general", user_id: Optional[str] = None) -> Optional[str]:
+        try:
+            text, _ = await self.route(prompt, task, user_id)
+            return text
+        except Exception:
+            return None
 
     async def _call_huggingface(self, model: str, prompt: str, key: str) -> Optional[str]:
         if not self._hf_session: self._hf_session = aiohttp.ClientSession()
@@ -179,6 +176,10 @@ class AIGateway:
         except Exception as e: logger.warning(f"Gemini failed: {e}")
         return None
 
-# نسخة عالمية واحدة
 ai_gateway = AIGateway()
-logger.info("✅ AI Gateway v1.0 initialized")
+
+# Legacy compatibility
+provider_router = ai_gateway
+MultiAIClient = type('MultiAIClient', (), {'get_best_reply': lambda self, prompt, task="general": ai_gateway.generate(prompt, task=task)})()
+
+logger.info("✅ AI Gateway v2.0 initialized (merged provider_router)")
