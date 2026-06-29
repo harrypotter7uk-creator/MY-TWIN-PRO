@@ -18,6 +18,7 @@ import {
   AlertCircle, Clock, ChevronDown,
 } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
+import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import * as CalendarModule from 'expo-calendar';
 
 const T = {
@@ -195,7 +196,7 @@ export default function TaskManager() {
       const date = new Date(task.due_date);
       await Notifications.scheduleNotificationAsync({
         content: { title: '⏰ تذكير مهمة', body: task.title, sound: true },
-        trigger: { date },
+        trigger: { type: SchedulableTriggerInputTypes.DATE, date },
       });
       Alert.alert('✅', isAr ? 'تم ضبط المنبه' : 'Reminder set');
     }

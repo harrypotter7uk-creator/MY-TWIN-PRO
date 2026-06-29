@@ -118,6 +118,18 @@ async def chat(request: ChatRequest) -> Dict[str, Any]:
                     reply=reply, emotion=detected_emotion, interaction_depth=0.5,
                 )
             except: pass
+            
+            # ✅ Knowledge Engine – تحديث المعرفة من كل محادثة
+            try:
+                from app.twin_state.knowledge_engine import knowledge_engine
+                await knowledge_engine.update_from_message(request.user_id, request.message)
+            except: pass
+            
+            # ✅ Knowledge Engine – تحديث المعرفة من كل محادثة
+            try:
+                from app.twin_state.knowledge_engine import knowledge_engine
+                await knowledge_engine.update_from_message(request.user_id, request.message)
+            except: pass
         
         latency_ms = (time.time() - start) * 1000
         

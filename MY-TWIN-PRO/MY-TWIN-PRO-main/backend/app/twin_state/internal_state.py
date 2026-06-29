@@ -158,3 +158,51 @@ class TwinInternalState:
 # نسخة عالمية
 twin_internal_state = TwinInternalState()
 logger.info("✅ Twin Internal State v1.0 initialized")
+
+    async def update_internal_emotion(self, user_id: str) -> str:
+        """
+        ✅ جديد: عاطفة داخلية تنشأ من الداخل.
+        - إذا مر وقت طويل بدون تفاعل: الملل
+        - إذا كان هناك أسئلة معلقة كثيرة: الترقب
+        - إذا كانت الطاقة مرتفعة: الحماس
+        - إذا كان الوقت ليلاً: التأمل
+        """
+        state = await self.get_state(user_id)
+        now = datetime.now(timezone.utc)
+        
+        # 1. تأثير الوقت
+        hour = now.hour
+        if 22 <= hour or hour < 6:
+            state["mood"] = "contemplative"  # ليلاً: تأملي
+        elif 6 <= hour < 10:
+            state["mood"] = "energetic"  # صباحاً: نشيط
+        elif 14 <= hour < 17:
+            state["mood"] = "curious"  # بعد الظهر: فضولي
+        
+        # 2. تأثير الأسئلة المعلقة
+        pending = state.get("pending_questions", [])
+        if len(pending) > 5:
+            state["mood"] = "curious"  # لديه الكثير ليقوله
+        
+        # 3. تأثير الطاقة
+        energy = state.get("energy_level", 0.5)
+        if energy > 0.8:
+            state["mood"] = "energetic"
+        elif energy < 0.3:
+            state["mood"] = "contemplative"
+        
+        # 4. تأثير آخر تفاعل (الملل إذا مر وقت طويل)
+        last_updated = state.get("updated_at", "")
+        if last_updated:
+            try:
+                last_dt = datetime.fromisoformat(last_updated)
+                hours_since = (now - last_dt).total_seconds() / 3600
+                if hours_since > 6:
+                    state["mood"] = "serious"  # جاد: يريد التفاعل
+            except:
+                pass
+        
+        state["updated_at"] = now.isoformat()
+        await self._save_state(user_id, state)
+        return state["mood"]
+

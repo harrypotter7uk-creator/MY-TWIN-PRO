@@ -1,9 +1,100 @@
+"""
+Consciousness Routes v2.0 – عرض بيانات الوعي والمحركات الجديدة كاملة
+=========================================================================
+يجمع بيانات: Prediction, Decision, Consciousness, Self Reflection,
+Belief System, Curiosity, Goal Evolution, Knowledge Engine في استدعاء واحد.
+"""
 from fastapi import APIRouter, Query
+from typing import Dict, Any
 
 router = APIRouter(prefix="/api/consciousness", tags=["consciousness"])
 
-@router.get("/recommendations")
-async def get_recommendations(user_id: str = Query(...)):
-    from app.core.consciousness_bridge import consciousness_bridge
-    recs = await consciousness_bridge.get_recommendations(user_id)
-    return {"recommendations": recs}
+@router.get("/status")
+async def consciousness_status(
+    user_id: str = Query(...),
+    lang: str = Query("ar"),
+) -> Dict[str, Any]:
+    """عرض حالة وعي التوأم الكاملة للمستخدم"""
+    result = {
+        "user_id": user_id,
+        "daily_insight": None,
+        "last_thought": None,
+        "pending_questions": [],
+        "beliefs": [],
+        "mood": "calm",
+        "knowledge_facts": [],
+        "knowledge_interests": [],
+        "goal_recommendation": None,
+        "goals_count": 0,
+    }
+
+    # 1. آخر فكرة + أسئلة معلقة + مزاج
+    try:
+        from app.twin_state.internal_state import twin_internal_state
+        state = await twin_internal_state.get_state(user_id)
+        result["last_thought"] = state.get("last_thought", "")
+        result["pending_questions"] = state.get("pending_questions", [])
+        result["mood"] = state.get("mood", "calm")
+        result["mood_label"] = await twin_internal_state.get_mood_label(user_id, lang)
+        result["energy_level"] = state.get("energy_level", 0.5)
+        result["bond_depth"] = state.get("bond_depth", 0.1)
+    except Exception:
+        pass
+
+    # 2. توجيه اليوم (من Prediction + Decision)
+    try:
+        from app.twin_state.prediction_engine import prediction_engine
+        pred = await prediction_engine.predict_tomorrow(user_id)
+        if pred and pred.get("recommendation"):
+            result["daily_insight"] = pred["recommendation"]
+    except Exception:
+        pass
+
+    if not result["daily_insight"]:
+        try:
+            from app.twin_state.decision_engine import decision_engine
+            dec = await decision_engine.make_decision(user_id)
+            if dec and dec.get("decision"):
+                result["daily_insight"] = dec["decision"]
+        except Exception:
+            pass
+
+    # 3. معتقدات التوأم
+    try:
+        from app.twin_state.belief_system import belief_system
+        beliefs = await belief_system.get_beliefs(user_id)
+        result["beliefs"] = beliefs[-3:] if beliefs else []
+    except Exception:
+        pass
+
+    # 4. وعي اليوم
+    try:
+        from app.twin_state.consciousness_engine import consciousness_engine
+        thought = await consciousness_engine.current_thought(user_id)
+        if thought:
+            result["current_thought"] = thought
+    except Exception:
+        pass
+
+    # 5. ✅ Knowledge Engine – حقائق واهتمامات
+    try:
+        from app.twin_state.knowledge_engine import knowledge_engine
+        knowledge = await knowledge_engine.get_user_knowledge(user_id)
+        if knowledge:
+            result["knowledge_facts"] = knowledge.get("facts", [])[-5:]
+            result["knowledge_interests"] = knowledge.get("interests", [])
+    except Exception:
+        pass
+
+    # 6. ✅ Goal Evolution – توصية هدف
+    try:
+        from app.twin_state.goal_evolution import goal_evolution
+        goals = await goal_evolution.get_goals(user_id)
+        result["goals_count"] = len(goals)
+        rec = await goal_evolution.evolve_goals(user_id)
+        if rec:
+            result["goal_recommendation"] = rec
+    except Exception:
+        pass
+
+    return result
