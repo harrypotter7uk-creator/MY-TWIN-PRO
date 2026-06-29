@@ -1,10 +1,11 @@
 """
-Study API Routes - مسارات واجهة برمجة التطبيقات للدراسة
-=========================================================
+Study API Routes v8.0 – مسارات واجهة برمجة التطبيقات للدراسة
+=============================================================
 تربط ATHENA بالواجهة الأمامية.
+- تدعم تحليل الصور عبر /explain-image.
+- تدعم الجلسات، الأسئلة، التلخيص، والمراجعة.
 """
-
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
@@ -49,6 +50,12 @@ class ReviewRequest(BaseModel):
     repetition_count: int = 0
     emotional_state: str = "neutral"
 
+class ExplainImageRequest(BaseModel):
+    user_id: str
+    image_uri: str
+    concept: str = ""
+    language: str = "ar"
+
 # ============================================================
 # مسارات API
 # ============================================================
@@ -58,7 +65,6 @@ async def start_study_session(request: StudyRequest) -> Dict[str, Any]:
     """بدء جلسة دراسة جديدة"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     return await athena.start_study_session(
         user_id=request.user_id,
         concept=request.concept,
@@ -71,7 +77,6 @@ async def process_study_answer(request: AnswerRequest) -> Dict[str, Any]:
     """معالجة إجابة الطالب"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     return await athena.process_answer(
         user_id=request.user_id,
         answer=request.answer,
@@ -82,7 +87,6 @@ async def end_study_session(user_id: str = Query(...)) -> Dict[str, Any]:
     """إنهاء جلسة الدراسة"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     return await athena.end_session(user_id=user_id)
 
 @router.post("/explain")
@@ -90,17 +94,23 @@ async def generate_explanation(request: StudyRequest) -> Dict[str, Any]:
     """توليد شرح باستخدام S.C.A.F.F.O.L.D"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
-    # بناء ملف طالب بسيط للشرح
-    student_profile = {
-        "important_people": [],
-        "identity_traits": [],
-    }
-    
+    student_profile = {"important_people": [], "identity_traits": []}
     return await scaffold.explain(
         concept=request.concept,
         student_profile=student_profile,
         age_group=request.age_group,
+        language=request.language,
+    )
+
+@router.post("/explain-image")
+async def explain_image(request: ExplainImageRequest) -> Dict[str, Any]:
+    """تحليل صورة وإرجاع شرح"""
+    if not STUDY_READY:
+        raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
+    return await athena.explain_image(
+        user_id=request.user_id,
+        image_uri=request.image_uri,
+        concept=request.concept,
         language=request.language,
     )
 
@@ -109,7 +119,6 @@ async def generate_questions(request: QuestionRequest) -> Dict[str, Any]:
     """توليد أسئلة تعليمية"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     if request.count == 1:
         questions = [bloom_gen.generate_question(
             concept=request.concept,
@@ -126,19 +135,13 @@ async def generate_questions(request: QuestionRequest) -> Dict[str, Any]:
             age_group=request.age_group,
             count=request.count,
         )
-    
-    return {
-        "concept": request.concept,
-        "questions": questions,
-        "count": len(questions),
-    }
+    return {"concept": request.concept, "questions": questions, "count": len(questions)}
 
 @router.post("/schedule-review")
 async def schedule_review(request: ReviewRequest) -> Dict[str, Any]:
     """جدولة مراجعة لمفهوم"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     return scheduler.calculate_next_review(
         concept=request.concept,
         quality=request.quality,
@@ -153,19 +156,14 @@ async def get_knowledge_path(concept_id: str = Query(...)) -> Dict[str, Any]:
     """الحصول على مسار التعلم لمفهوم"""
     if not STUDY_READY:
         raise HTTPException(status_code=503, detail="خدمة الدراسة غير متوفرة")
-    
     path = knowledge_graph.get_learning_path(concept_id)
-    return {
-        "concept_id": concept_id,
-        "learning_path": path,
-        "steps": len(path),
-    }
+    return {"concept_id": concept_id, "learning_path": path, "steps": len(path)}
 
 
 class SummarizeRequest(BaseModel):
     user_id: str
     content: str
-    content_type: str = "book"  # book or video
+    content_type: str = "book"
     language: str = "ar"
     style: str = "detailed"
 

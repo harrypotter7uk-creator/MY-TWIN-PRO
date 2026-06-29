@@ -1,5 +1,5 @@
 """
-P.A.S.S. Routes – المساعد الشخصي (Plugin)
+P.A.S.S. Routes v2.0 – المساعد الشخصي (Plugin)
 =============================================
 يدير: المهام، التقويم، الطقس، الأخبار، اليوتيوب.
 جميع الدوال تستدعي PASSOrchestrator الحقيقي.
@@ -34,6 +34,12 @@ async def complete_task(user_id: str = Query(...), task_id: str = Query(...)):
     from app.features.task_manager.pass_orchestrator import pass_assistant
     return await pass_assistant.complete_task(user_id, task_id)
 
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, user_id: str = Query(...)):
+    """حذف مهمة"""
+    from app.features.task_manager.pass_orchestrator import pass_assistant
+    return await pass_assistant.delete_task(user_id, task_id)
+
 @router.get("/weather")
 async def weather(city: str = "Cairo", lang: str = "ar"):
     """جلب الطقس عبر Open-Meteo (مجاني) أو OpenWeatherMap"""
@@ -42,7 +48,7 @@ async def weather(city: str = "Cairo", lang: str = "ar"):
 
 @router.get("/news")
 async def news(country: str = "us", lang: str = "en"):
-    """جلب الأخبار عبر NewsAPI أو Wikipedia"""
+    """جلب الأخبار عبر Wikipedia أو GNews"""
     from app.features.task_manager.pass_orchestrator import pass_assistant
     return await pass_assistant.get_news_direct(country, lang)
 

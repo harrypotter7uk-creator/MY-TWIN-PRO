@@ -2,8 +2,9 @@
 P.A.S.S. Orchestrator v5.1 – المساعد الشخصي (Plugin)
 =============================================================
 - يرث من BasePlugin – يسجل نفسه تلقائياً في FeatureRegistry.
-- خدمات خارجية حقيقية: طقس، أخبار، يوتيوب، سبوتيفاي.
+- خدمات خارجية حقيقية: طقس، أخبار، يوتيوب.
 - تكامل TCMA و Supabase.
+- ✅ جميع الدوال موجودة ومترابطة مع external_services.py و task_manager_routes.py
 """
 import logging
 from typing import Dict, Any, List, Optional
@@ -59,7 +60,6 @@ class PASSOrchestrator(BasePlugin):
             self.tasks[user_id] = []
         self.tasks[user_id].append(task)
 
-        # تخزين في TCMA
         try:
             from app.memory.emotional.emotional_memory import store_emotional_memory
             await store_emotional_memory(
@@ -70,7 +70,6 @@ class PASSOrchestrator(BasePlugin):
         except Exception as e:
             logger.debug(f"TCMA store skipped: {e}")
 
-        # تخزين في Supabase
         try:
             from app.infrastructure.database.supabase_client import get_db
             db = get_db()
@@ -88,7 +87,6 @@ class PASSOrchestrator(BasePlugin):
         tasks = self.tasks.get(user_id, [])
         if status != "all":
             tasks = [t for t in tasks if t.get("status") == status]
-
         context = ""
         try:
             from app.memory.emotional.emotional_memory import get_emotional_patterns
@@ -96,7 +94,6 @@ class PASSOrchestrator(BasePlugin):
             context = patterns.get("dominant_emotion", "neutral")
         except:
             pass
-
         return {"tasks": tasks, "total": len(tasks), "user_emotion": context}
 
     async def complete_task(self, user_id: str, task_id: str) -> Dict[str, Any]:
@@ -105,7 +102,6 @@ class PASSOrchestrator(BasePlugin):
             if task["id"] == task_id:
                 task["status"] = "completed"
                 task["completed_at"] = datetime.now(timezone.utc).isoformat()
-
                 try:
                     from app.memory.emotional.emotional_memory import store_emotional_memory
                     await store_emotional_memory(
@@ -115,7 +111,6 @@ class PASSOrchestrator(BasePlugin):
                     )
                 except:
                     pass
-
                 return {"task": task, "message": f"🎉 تم إنجاز: {task['title']}"}
         return {"error": "المهمة غير موجودة"}
 
@@ -143,12 +138,10 @@ class PASSOrchestrator(BasePlugin):
         if user_id not in self.calendar_events:
             self.calendar_events[user_id] = []
         self.calendar_events[user_id].append(event)
-
         try:
             reminder_date = datetime.fromisoformat(event_date) - timedelta(hours=2)
         except ValueError:
             reminder_date = datetime.now(timezone.utc) + timedelta(days=1)
-
         return {
             "event": event,
             "reminder": f"⏰ تذكير قبل الموعد بساعتين: {reminder_date.strftime('%Y-%m-%d %H:%M')}"
@@ -168,10 +161,9 @@ class PASSOrchestrator(BasePlugin):
         return {"events": upcoming, "days": days}
 
     # ================================================================
-    # 3. الخدمات الخارجية (دوال حقيقية داخل الفئة)
+    # 3. الخدمات الخارجية
     # ================================================================
     async def get_weather_direct(self, city: str = "Cairo", lang: str = "ar") -> Dict[str, Any]:
-        """جلب الطقس مباشرة من external_services"""
         try:
             from app.features.task_manager.external_services import get_weather
             return await get_weather(city, lang)
@@ -180,7 +172,6 @@ class PASSOrchestrator(BasePlugin):
             return {"city": city, "error": "تعذر جلب الطقس"}
 
     async def get_news_direct(self, country: str = "us", lang: str = "en") -> Dict[str, Any]:
-        """جلب الأخبار مباشرة من external_services"""
         try:
             from app.features.task_manager.external_services import get_news
             return await get_news(country, lang)
@@ -189,7 +180,6 @@ class PASSOrchestrator(BasePlugin):
             return {"articles": [], "error": str(e)}
 
     async def search_youtube(self, query: str, max_results: int = 3, lang: str = "ar") -> Dict[str, Any]:
-        """بحث يوتيوب مباشرة من external_services"""
         try:
             from app.features.task_manager.external_services import search_youtube as yt_search
             result = await yt_search(query, max_results, lang)
@@ -203,22 +193,17 @@ class PASSOrchestrator(BasePlugin):
     # ================================================================
     async def get_dashboard(self, user_id: str) -> Dict[str, Any]:
         tasks_data = await self.list_tasks(user_id)
-
         weather = None
         news = None
-
         try:
             weather = await self.get_weather_direct("Cairo")
-        except Exception as e:
-            logger.debug(f"Weather dashboard failed: {e}")
-
+        except:
+            pass
         try:
             news = await self.get_news_direct("us")
-        except Exception as e:
-            logger.debug(f"News dashboard failed: {e}")
-
+        except:
+            pass
         recommendation = await self._generate_recommendation(weather, tasks_data)
-
         return {
             "tasks": tasks_data.get("tasks", []),
             "weather": weather or {},
@@ -237,15 +222,11 @@ class PASSOrchestrator(BasePlugin):
                     return "الجو بارد. ارتدِ ملابس دافئة أثناء إنجاز مهامك."
         except (ValueError, TypeError):
             pass
-
         pending = len([t for t in tasks.get("tasks", []) if t.get("status") == "pending"])
         if pending > 5:
             return f"لديك {pending} مهام معلقة. ابدأ بالأهم فالمهم!"
         return "يوم جيد لإنجاز مهامك!"
 
-    # ================================================================
-    # 5. تسجيل المسارات
-    # ================================================================
     def register_routes(self, app: Any) -> bool:
         try:
             from app.api.routes.task_manager_routes import router
