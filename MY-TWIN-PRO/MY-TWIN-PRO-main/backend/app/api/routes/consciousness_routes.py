@@ -1,8 +1,5 @@
 """
-Consciousness Routes v2.0 – عرض بيانات الوعي والمحركات الجديدة كاملة
-=========================================================================
-يجمع بيانات: Prediction, Decision, Consciousness, Self Reflection,
-Belief System, Curiosity, Goal Evolution, Knowledge Engine في استدعاء واحد.
+Consciousness Routes v3.0 – عرض بيانات الوعي والمحركات كاملة
 """
 from fastapi import APIRouter, Query
 from typing import Dict, Any
@@ -14,9 +11,9 @@ async def consciousness_status(
     user_id: str = Query(...),
     lang: str = Query("ar"),
 ) -> Dict[str, Any]:
-    """عرض حالة وعي التوأم الكاملة للمستخدم"""
     result = {
         "user_id": user_id,
+        "unified_feeling": None,
         "daily_insight": None,
         "last_thought": None,
         "pending_questions": [],
@@ -31,7 +28,15 @@ async def consciousness_status(
         "dominant_emotion_toward_user": "neutral",
         "on_this_day_memory": None,
         "relationship_stage": None,
+        "agentic_actions": [],
     }
+
+    # 0. الشعور الموحد (Mood Synthesizer)
+    try:
+        from app.twin_state.mood_synthesizer import mood_synthesizer
+        result["unified_feeling"] = await mood_synthesizer.synthesize(user_id, lang)
+    except Exception:
+        pass
 
     # 1. آخر فكرة + أسئلة معلقة + مزاج
     try:
@@ -81,7 +86,7 @@ async def consciousness_status(
     except Exception:
         pass
 
-    # 5. ✅ Knowledge Engine – حقائق واهتمامات
+    # 5. Knowledge Engine
     try:
         from app.twin_state.knowledge_engine import knowledge_engine
         knowledge = await knowledge_engine.get_user_knowledge(user_id)
@@ -91,7 +96,7 @@ async def consciousness_status(
     except Exception:
         pass
 
-    # 6. ✅ Goal Evolution – توصية هدف
+    # 6. Goal Evolution
     try:
         from app.twin_state.goal_evolution import goal_evolution
         goals = await goal_evolution.get_goals(user_id)
@@ -102,71 +107,41 @@ async def consciousness_status(
     except Exception:
         pass
 
-    # 7. ✅ أحدث حلم
+    # 7. أحدث حلم
     try:
-        from app.twin_state.internal_state import twin_internal_state
-        state = await twin_internal_state.get_state(user_id)
-        dreams = state.get("dreams", [])
-        if dreams:
-            result["latest_dream"] = dreams[-1].get("text", "")[:200]
+        dreams = result.get("pending_questions", [])
+        for q in dreams:
+            if "حلمت" in q:
+                result["latest_dream"] = q
+                break
     except Exception:
         pass
 
-    # 8. ✅ أحدث مناسبة
+    # 8. أحدث مناسبة
     try:
-        pending = result.get("pending_questions", [])
-        for q in pending:
+        for q in result.get("pending_questions", []):
             if "🎉" in q:
                 result["latest_milestone"] = q
                 break
     except Exception:
         pass
 
-    # 9. ✅ المشاعر الطاغية تجاه المستخدم
+    # 9. المشاعر الطاغية تجاه المستخدم
     try:
-        from app.twin_state.internal_state import twin_internal_state
         result["dominant_emotion_toward_user"] = await twin_internal_state.get_dominant_emotion_toward_user(user_id)
     except Exception:
         pass
 
-    # 7. ✅ أحدث حلم
+    # 10. ذاكرة "في مثل هذا اليوم"
     try:
-        from app.twin_state.internal_state import twin_internal_state
-        state = await twin_internal_state.get_state(user_id)
-        dreams = state.get("dreams", [])
-        if dreams:
-            result["latest_dream"] = dreams[-1].get("text", "")[:200]
-    except Exception:
-        pass
-
-    # 8. ✅ أحدث مناسبة
-    try:
-        pending = result.get("pending_questions", [])
-        for q in pending:
-            if "🎉" in q:
-                result["latest_milestone"] = q
-                break
-    except Exception:
-        pass
-
-    # 9. ✅ المشاعر الطاغية تجاه المستخدم
-    try:
-        from app.twin_state.internal_state import twin_internal_state
-        result["dominant_emotion_toward_user"] = await twin_internal_state.get_dominant_emotion_toward_user(user_id)
-    except Exception:
-        pass
-
-    # 10. ✅ ذاكرة "في مثل هذا اليوم"
-    try:
-        pending = result.get("pending_questions", [])
-        for q in pending:
+        for q in result.get("pending_questions", []):
             if "📅" in q:
                 result["on_this_day_memory"] = q.replace("📅 ", "")
                 break
     except Exception:
         pass
 
-    # 11. ✅ مرحلة العلاقة
+    # 11. مرحلة العلاقة
     try:
         from app.twin_state.relationship_simulator import relationship_simulator
         stage_data = await relationship_simulator.get_current_stage(user_id)
@@ -176,6 +151,13 @@ async def consciousness_status(
             "trust": stage_data["metrics"]["trust"],
             "intimacy": stage_data["metrics"]["intimacy"],
         }
+    except Exception:
+        pass
+
+    # 12. إجراءات Agentic Loop
+    try:
+        agentic = [q.replace("🤖 ", "") for q in result.get("pending_questions", []) if q.startswith("🤖")]
+        result["agentic_actions"] = agentic
     except Exception:
         pass
 

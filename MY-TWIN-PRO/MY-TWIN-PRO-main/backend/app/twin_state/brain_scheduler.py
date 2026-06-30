@@ -133,6 +133,22 @@ class BrainScheduler:
             except Exception as e:
                 logger.debug(f"Hourly/unified {uid}: {e}")
             try:
+                from app.twin_state.self_monitor import self_monitor
+                observation = await self_monitor.check_quality(uid)
+                if observation:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.add_pending_question(uid, f"🔍 {observation}")
+            except Exception as e:
+                logger.debug(f"Hourly/monitor {uid}: {e}")
+            try:
+                from app.twin_state.self_monitor import self_monitor
+                observation = await self_monitor.check_quality(uid)
+                if observation:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.add_pending_question(uid, f"🔍 {observation}")
+            except Exception as e:
+                logger.debug(f"Hourly/monitor {uid}: {e}")
+            try:
                 from app.twin_state.identity_evolution import identity_evolution
                 await identity_evolution.evolve_if_ready(uid)
             except Exception as e:
@@ -145,6 +161,11 @@ class BrainScheduler:
                     await twin_internal_state.add_pending_question(uid, f"💡 {dec['decision']}")
             except Exception as e:
                 logger.debug(f"Hourly/decision {uid}: {e}")
+            try:
+                from app.twin_state.proactive_intelligence import proactive_intelligence
+                await proactive_intelligence.check_and_notify(uid)
+            except Exception as e:
+                logger.debug(f"Hourly/proactive {uid}: {e}")
 
     # ═══════════════════════════════════════════════════════════
     # دورة عميقة – يومياً
