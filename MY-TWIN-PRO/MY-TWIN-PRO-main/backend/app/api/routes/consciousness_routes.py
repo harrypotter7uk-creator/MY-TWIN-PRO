@@ -29,6 +29,8 @@ async def consciousness_status(
         "latest_dream": None,
         "latest_milestone": None,
         "dominant_emotion_toward_user": "neutral",
+        "on_this_day_memory": None,
+        "relationship_stage": None,
     }
 
     # 1. آخر فكرة + أسئلة معلقة + مزاج
@@ -151,6 +153,29 @@ async def consciousness_status(
     try:
         from app.twin_state.internal_state import twin_internal_state
         result["dominant_emotion_toward_user"] = await twin_internal_state.get_dominant_emotion_toward_user(user_id)
+    except Exception:
+        pass
+
+    # 10. ✅ ذاكرة "في مثل هذا اليوم"
+    try:
+        pending = result.get("pending_questions", [])
+        for q in pending:
+            if "📅" in q:
+                result["on_this_day_memory"] = q.replace("📅 ", "")
+                break
+    except Exception:
+        pass
+
+    # 11. ✅ مرحلة العلاقة
+    try:
+        from app.twin_state.relationship_simulator import relationship_simulator
+        stage_data = await relationship_simulator.get_current_stage(user_id)
+        result["relationship_stage"] = {
+            "stage": stage_data["stage"],
+            "label": stage_data.get("label_ar", stage_data["stage"]),
+            "trust": stage_data["metrics"]["trust"],
+            "intimacy": stage_data["metrics"]["intimacy"],
+        }
     except Exception:
         pass
 

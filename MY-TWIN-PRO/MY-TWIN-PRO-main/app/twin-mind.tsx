@@ -12,7 +12,7 @@ import { apiGet } from '../lib/httpClient';
 import { AdModal } from '../components/AdModal';
 import {
   Sparkles, Zap, Brain, Crown, MessageSquare,
-  Lightbulb, BookOpen, BatteryCharging, Compass,
+  Lightbulb, BookOpen, BatteryCharging, Compass, Clock, TrendingUp,
   Target, Heart, Moon, Star, Cloud
 } from 'lucide-react-native';
 
@@ -65,6 +65,8 @@ export default function TwinMindCenter() {
   const [latestDream, setLatestDream] = useState('');
   const [latestMilestone, setLatestMilestone] = useState('');
   const [dominantEmotionTowardUser, setDominantEmotionTowardUser] = useState('neutral');
+  const [onThisDayMemory, setOnThisDayMemory] = useState('');
+  const [relationshipStage, setRelationshipStage] = useState<any>(null);
 
   const colors = {
     bg: isDark ? '#0A0014' : '#FAFAF8',
@@ -98,6 +100,8 @@ export default function TwinMindCenter() {
         setLatestDream(st.latest_dream || '');
         setLatestMilestone(st.latest_milestone || '');
         setDominantEmotionTowardUser(st.dominant_emotion_toward_user || 'neutral');
+        setOnThisDayMemory(st.on_this_day_memory || '');
+        setRelationshipStage(st.relationship_stage || null);
       }
     } catch (e) {}
     setRefreshing(false);
@@ -204,6 +208,34 @@ export default function TwinMindCenter() {
               ))}
             </View>
           )}
+
+          {/* 📅 في مثل هذا اليوم */}
+          {onThisDayMemory ? (
+            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={st.cardHeader}>
+                <Clock size={20} stroke={colors.blue} />
+                <Text style={[st.cardTitle, { color: colors.text }]}>
+                  {isAr ? 'في مثل هذا اليوم' : 'On This Day'}
+                </Text>
+              </View>
+              <Text style={[st.thoughtText, { color: colors.subtext }]}>{onThisDayMemory}</Text>
+            </View>
+          ) : null}
+
+          {/* 🤝 مرحلة علاقتنا */}
+          {relationshipStage ? (
+            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={st.cardHeader}>
+                <TrendingUp size={20} stroke={colors.gold} />
+                <Text style={[st.cardTitle, { color: colors.text }]}>
+                  {isAr ? 'مرحلة علاقتنا' : 'Our Relationship'}
+                </Text>
+              </View>
+              <Text style={[st.thoughtText, { color: colors.subtext }]}>
+                {relationshipStage.label || relationshipStage.stage}
+              </Text>
+            </View>
+          ) : null}
 
           {/* 🔮 توجيه اليوم */}
           {dailyInsight ? (

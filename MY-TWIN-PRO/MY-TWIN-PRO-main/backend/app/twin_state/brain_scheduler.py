@@ -157,6 +157,13 @@ class BrainScheduler:
                 continue
             self._processed_daily.add(uid)
             try:
+                from app.memory.memory_decay import memory_decay_engine
+                result = await memory_decay_engine.decay_memories(uid)
+                if result.get("weakened") or result.get("deleted"):
+                    logger.info(f"Daily/decay {uid}: weakened={result['weakened']}, deleted={result['deleted']}")
+            except Exception as e:
+                logger.debug(f"Daily/decay {uid}: {e}")
+            try:
                 from app.memory.memory_compressor import memory_compressor
                 await memory_compressor.compress(uid)
             except Exception as e:
@@ -197,6 +204,22 @@ class BrainScheduler:
                     await twin_internal_state.add_pending_question(uid, f"🔮 {pred['recommendation']}")
             except Exception as e:
                 logger.debug(f"Daily/prediction {uid}: {e}")
+            try:
+                from app.memory.on_this_day import on_this_day_engine
+                memory = await on_this_day_engine.get_memory_for_today(uid)
+                if memory:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.add_pending_question(uid, f"📅 {memory}")
+            except Exception as e:
+                logger.debug(f"Daily/onthisday {uid}: {e}")
+            try:
+                from app.twin_state.relationship_simulator import relationship_simulator
+                milestone = await relationship_simulator.check_for_milestone(uid)
+                if milestone:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.add_pending_question(uid, milestone)
+            except Exception as e:
+                logger.debug(f"Daily/simulator {uid}: {e}")
             try:
                 from app.twin_state.goal_evolution import goal_evolution
                 rec = await goal_evolution.evolve_goals(uid)
