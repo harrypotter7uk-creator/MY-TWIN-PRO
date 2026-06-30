@@ -26,6 +26,9 @@ async def consciousness_status(
         "knowledge_interests": [],
         "goal_recommendation": None,
         "goals_count": 0,
+        "latest_dream": None,
+        "latest_milestone": None,
+        "dominant_emotion_toward_user": "neutral",
     }
 
     # 1. آخر فكرة + أسئلة معلقة + مزاج
@@ -94,6 +97,60 @@ async def consciousness_status(
         rec = await goal_evolution.evolve_goals(user_id)
         if rec:
             result["goal_recommendation"] = rec
+    except Exception:
+        pass
+
+    # 7. ✅ أحدث حلم
+    try:
+        from app.twin_state.internal_state import twin_internal_state
+        state = await twin_internal_state.get_state(user_id)
+        dreams = state.get("dreams", [])
+        if dreams:
+            result["latest_dream"] = dreams[-1].get("text", "")[:200]
+    except Exception:
+        pass
+
+    # 8. ✅ أحدث مناسبة
+    try:
+        pending = result.get("pending_questions", [])
+        for q in pending:
+            if "🎉" in q:
+                result["latest_milestone"] = q
+                break
+    except Exception:
+        pass
+
+    # 9. ✅ المشاعر الطاغية تجاه المستخدم
+    try:
+        from app.twin_state.internal_state import twin_internal_state
+        result["dominant_emotion_toward_user"] = await twin_internal_state.get_dominant_emotion_toward_user(user_id)
+    except Exception:
+        pass
+
+    # 7. ✅ أحدث حلم
+    try:
+        from app.twin_state.internal_state import twin_internal_state
+        state = await twin_internal_state.get_state(user_id)
+        dreams = state.get("dreams", [])
+        if dreams:
+            result["latest_dream"] = dreams[-1].get("text", "")[:200]
+    except Exception:
+        pass
+
+    # 8. ✅ أحدث مناسبة
+    try:
+        pending = result.get("pending_questions", [])
+        for q in pending:
+            if "🎉" in q:
+                result["latest_milestone"] = q
+                break
+    except Exception:
+        pass
+
+    # 9. ✅ المشاعر الطاغية تجاه المستخدم
+    try:
+        from app.twin_state.internal_state import twin_internal_state
+        result["dominant_emotion_toward_user"] = await twin_internal_state.get_dominant_emotion_toward_user(user_id)
     except Exception:
         pass
 

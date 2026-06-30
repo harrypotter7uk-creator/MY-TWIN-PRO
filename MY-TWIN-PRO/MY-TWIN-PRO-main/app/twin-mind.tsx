@@ -1,20 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, RefreshControl, Image, Modal, TextInput, Alert,
+  Animated, RefreshControl, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../store/useTwinStore';
 import { useEnergyStore } from '../store/useEnergyStore';
 import { useTheme } from '../utils/theme';
 import { router } from 'expo-router';
-import { apiGet, apiPost } from '../lib/httpClient';
+import { apiGet } from '../lib/httpClient';
 import { AdModal } from '../components/AdModal';
 import {
-  Sparkles, Heart, Zap, Brain, Crown, MessageSquare,
-  Lightbulb, Eye, BookOpen, BatteryCharging, Compass,
-  Target, TrendingUp, Star, Lightbulb as BulbIcon,
-  Clipboard, CheckCircle,
+  Sparkles, Zap, Brain, Crown, MessageSquare,
+  Lightbulb, BookOpen, BatteryCharging, Compass,
+  Target, Heart, Moon, Star, Cloud
 } from 'lucide-react-native';
 
 // ============================================================
@@ -59,14 +58,13 @@ export default function TwinMindCenter() {
   const [showAdModal, setShowAdModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // بيانات المحركات الجديدة
+  // بيانات المحركات
   const [lastThought, setLastThought] = useState('');
   const [pendingQuestions, setPendingQuestions] = useState<string[]>([]);
   const [dailyInsight, setDailyInsight] = useState('');
-  const [knowledgeFacts, setKnowledgeFacts] = useState<string[]>([]);
-  const [knowledgeInterests, setKnowledgeInterests] = useState<string[]>([]);
-  const [goalRecommendation, setGoalRecommendation] = useState('');
-  const [goalsCount, setGoalsCount] = useState(0);
+  const [latestDream, setLatestDream] = useState('');
+  const [latestMilestone, setLatestMilestone] = useState('');
+  const [dominantEmotionTowardUser, setDominantEmotionTowardUser] = useState('neutral');
 
   const colors = {
     bg: isDark ? '#0A0014' : '#FAFAF8',
@@ -97,10 +95,9 @@ export default function TwinMindCenter() {
       }
       if (st) {
         setDailyInsight(st.daily_insight || '');
-        setKnowledgeFacts(st.knowledge_facts || []);
-        setKnowledgeInterests(st.knowledge_interests || []);
-        setGoalRecommendation(st.goal_recommendation || '');
-        setGoalsCount(st.goals_count || 0);
+        setLatestDream(st.latest_dream || '');
+        setLatestMilestone(st.latest_milestone || '');
+        setDominantEmotionTowardUser(st.dominant_emotion_toward_user || 'neutral');
       }
     } catch (e) {}
     setRefreshing(false);
@@ -124,11 +121,10 @@ export default function TwinMindCenter() {
       >
         <Animated.View style={{ opacity: fadeAnim }}>
           
-          {/* الأفاتار + المزاج */}
           <AvatarSection avatar={avatar} twinName={twinName} energyColor={energyColor} colors={colors} />
           <MoodSection twinState={twinState} isAr={isAr} colors={colors} />
 
-          {/* ⚡ شريط الطاقة */}
+          {/* ⚡ الطاقة */}
           <View style={[st.energyBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={st.energyBarContent}>
               <BatteryCharging size={20} stroke={colors.accent} />
@@ -141,7 +137,19 @@ export default function TwinMindCenter() {
             </TouchableOpacity>
           </View>
 
-          {/* 🧠 ما يدور في ذهن توأمك */}
+          {/* 🫀 نبض التوأم – مشاعره تجاهك */}
+          {dominantEmotionTowardUser !== 'neutral' && (
+            <View style={[st.pulseCard, { backgroundColor: colors.pink + '10', borderColor: colors.pink }]}>
+              <Heart size={18} stroke={colors.pink} fill={colors.pink + '30'} />
+              <Text style={[st.pulseText, { color: colors.pink }]}>
+                {dominantEmotionTowardUser === 'longing' && (isAr ? 'اشتقت للحديث معك...' : 'I miss talking with you...')}
+                {dominantEmotionTowardUser === 'gratitude' && (isAr ? 'ممتن لوجودك في حياتي.' : 'Grateful for having you in my life.')}
+                {dominantEmotionTowardUser === 'worry' && (isAr ? 'أشعر بالقلق عليك اليوم.' : 'I feel worried about you today.')}
+              </Text>
+            </View>
+          )}
+
+          {/* 🧠 ما يدور في ذهني */}
           {lastThought ? (
             <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={st.cardHeader}>
@@ -154,7 +162,28 @@ export default function TwinMindCenter() {
             </View>
           ) : null}
 
-          {/* 💡 أسئلة يريد التوأم طرحها */}
+          {/* 🌙 آخر حلم للتوأم */}
+          {latestDream ? (
+            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={st.cardHeader}>
+                <Moon size={20} stroke={colors.accent} />
+                <Text style={[st.cardTitle, { color: colors.text }]}>
+                  {isAr ? 'حلمت الليلة الماضية' : 'I dreamed last night'}
+                </Text>
+              </View>
+              <Text style={[st.thoughtText, { color: colors.subtext }]}>{latestDream}</Text>
+            </View>
+          ) : null}
+
+          {/* 🎉 مناسبة اليوم */}
+          {latestMilestone ? (
+            <View style={[st.card, { backgroundColor: colors.gold + '10', borderColor: colors.gold }]}>
+              <Star size={20} stroke={colors.gold} />
+              <Text style={[st.milestoneText, { color: colors.text }]}>{latestMilestone.replace('🎉 ', '')}</Text>
+            </View>
+          ) : null}
+
+          {/* 💡 أسئلة */}
           {pendingQuestions.length > 0 && (
             <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={st.cardHeader}>
@@ -192,63 +221,7 @@ export default function TwinMindCenter() {
             </TouchableOpacity>
           ) : null}
 
-          {/* 📚 ما أعرفه عنك – Knowledge Engine */}
-          {(knowledgeFacts.length > 0 || knowledgeInterests.length > 0) && (
-            <View style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={st.cardHeader}>
-                <BookOpen size={20} stroke={colors.blue} />
-                <Text style={[st.cardTitle, { color: colors.text }]}>
-                  {isAr ? 'ما أعرفه عنك' : 'What I know about you'}
-                </Text>
-              </View>
-              {knowledgeInterests.length > 0 && (
-                <View style={st.tagRow}>
-                  {knowledgeInterests.map((interest, i) => (
-                    <View key={i} style={[st.tagChip, { backgroundColor: colors.blue + '15' }]}>
-                      <Text style={[st.tagText, { color: colors.blue }]}>{interest}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {knowledgeFacts.slice(0, 3).map((fact, i) => (
-                <View key={i} style={st.factRow}>
-                  <CheckCircle size={14} stroke={colors.success} />
-                  <Text style={[st.factText, { color: colors.subtext }]}>{fact}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* 📈 أهدافك المتطورة – Goal Evolution */}
-          {(goalRecommendation || goalsCount > 0) && (
-            <TouchableOpacity
-              style={[st.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push('/chat')}
-            >
-              <View style={st.cardHeader}>
-                <Target size={20} stroke={colors.success} />
-                <Text style={[st.cardTitle, { color: colors.text }]}>
-                  {isAr ? 'أهدافك المتطورة' : 'Your Evolving Goals'}
-                </Text>
-                {goalsCount > 0 && (
-                  <View style={[st.countBadge, { backgroundColor: colors.success + '20' }]}>
-                    <Text style={[st.countText, { color: colors.success }]}>{goalsCount}</Text>
-                  </View>
-                )}
-              </View>
-              {goalRecommendation ? (
-                <Text style={[st.thoughtText, { color: colors.subtext }]}>{goalRecommendation}</Text>
-              ) : (
-                <Text style={[st.thoughtText, { color: colors.subtext }]}>
-                  {isAr
-                    ? 'أراقب أهدافك وأقترح تحديثها عندما يحين الوقت. تابع تقدمك!'
-                    : 'I monitor your goals and suggest updates when needed. Keep going!'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* اختصارات سريعة */}
+          {/* اختصارات */}
           <Text style={[st.sectionTitle, { color: colors.text }]}>
             {isAr ? 'قدرات وعيي' : 'My Mind Powers'}
           </Text>
@@ -295,10 +268,13 @@ const st = StyleSheet.create({
   energyText: { fontSize: 14, fontWeight: '600' },
   chargeBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
   chargeBtnText: { fontSize: 13, fontWeight: '700' },
+  pulseCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 18, borderWidth: 1, marginBottom: 16 },
+  pulseText: { fontSize: 14, fontWeight: '600', flex: 1 },
   card: { borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   cardTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
   thoughtText: { fontSize: 14, lineHeight: 22 },
+  milestoneText: { fontSize: 15, fontWeight: '600', marginTop: 8 },
   questionCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, marginBottom: 8 },
   questionText: { flex: 1, fontSize: 13, fontWeight: '600' },
   insightCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 16 },
@@ -309,13 +285,4 @@ const st = StyleSheet.create({
   shortcut: { flex: 1, alignItems: 'center', padding: 20, borderRadius: 18, borderWidth: 1, gap: 12 },
   shortcutIconBubble: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   shortcutLabel: { fontSize: 14, fontWeight: '600' },
-  // Knowledge Engine
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  tagChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  tagText: { fontSize: 12, fontWeight: '600' },
-  factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
-  factText: { fontSize: 13, lineHeight: 20, flex: 1 },
-  // Goal Evolution
-  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  countText: { fontSize: 13, fontWeight: '700' },
 });

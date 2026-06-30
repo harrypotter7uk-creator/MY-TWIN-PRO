@@ -162,6 +162,22 @@ class BrainScheduler:
             except Exception as e:
                 logger.debug(f"Daily/compressor {uid}: {e}")
             try:
+                from app.twin_state.dreaming_engine import dreaming_engine
+                dream = await dreaming_engine.dream(uid)
+                if dream:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.set_last_thought(uid, f"حلمت الليلة: {dream[:150]}")
+            except Exception as e:
+                logger.debug(f"Daily/dreaming {uid}: {e}")
+            try:
+                from app.twin_state.milestone_engine import milestone_engine
+                milestone = await milestone_engine.check_milestones(uid)
+                if milestone:
+                    from app.twin_state.internal_state import twin_internal_state
+                    await twin_internal_state.add_pending_question(uid, f"🎉 {milestone}")
+            except Exception as e:
+                logger.debug(f"Daily/milestone {uid}: {e}")
+            try:
                 from app.twin_state.belief_system import belief_system
                 await belief_system.update_beliefs(uid)
             except Exception as e:

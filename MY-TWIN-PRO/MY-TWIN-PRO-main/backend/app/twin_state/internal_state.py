@@ -52,6 +52,9 @@ class TwinInternalState:
                     "bond_depth": res.data.get("bond_depth", 0.1),
                     "last_thought": res.data.get("last_thought", ""),
                     "pending_questions": res.data.get("pending_questions", []),
+                    "dreams": res.data.get("dreams", []),
+                    "sent_milestones": res.data.get("sent_milestones", []),
+                    "emotions_toward_user": res.data.get("emotions_toward_user", {"longing": 0.1, "gratitude": 0.5, "worry": 0.0}),
                     "updated_at": res.data.get("updated_at", datetime.now(timezone.utc).isoformat()),
                 }
                 self._states[user_id] = state
@@ -67,6 +70,9 @@ class TwinInternalState:
             "bond_depth": 0.1,
             "last_thought": "",
             "pending_questions": [],
+            "dreams": [],
+            "sent_milestones": [],
+            "emotions_toward_user": {"longing": 0.1, "gratitude": 0.5, "worry": 0.0},
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         self._states[user_id] = state
@@ -206,3 +212,27 @@ logger.info("✅ Twin Internal State v1.0 initialized")
         await self._save_state(user_id, state)
         return state["mood"]
 
+
+    # ================================================================
+    # ✅ جديد: مشاعر ذاتية تجاه المستخدم
+    # ================================================================
+    async def update_emotion_toward_user(self, user_id: str, emotion_type: str, delta: float):
+        """تحديث المشاعر تجاه المستخدم (شوق، امتنان، قلق)"""
+        state = await self.get_state(user_id)
+        if "emotions_toward_user" not in state:
+            state["emotions_toward_user"] = {"longing": 0.1, "gratitude": 0.5, "worry": 0.0}
+        if emotion_type in state["emotions_toward_user"]:
+            state["emotions_toward_user"][emotion_type] = max(0.0, min(1.0, state["emotions_toward_user"][emotion_type] + delta))
+            await self._save_state(user_id, state)
+
+    async def get_emotions_toward_user(self, user_id: str) -> Dict[str, float]:
+        """استرجاع المشاعر تجاه المستخدم"""
+        state = await self.get_state(user_id)
+        return state.get("emotions_toward_user", {"longing": 0.1, "gratitude": 0.5, "worry": 0.0})
+
+    async def get_dominant_emotion_toward_user(self, user_id: str) -> str:
+        """أكثر شعور طاغٍ تجاه المستخدم"""
+        emotions = await self.get_emotions_toward_user(user_id)
+        if not emotions:
+            return "neutral"
+        return max(emotions, key=emotions.get)
