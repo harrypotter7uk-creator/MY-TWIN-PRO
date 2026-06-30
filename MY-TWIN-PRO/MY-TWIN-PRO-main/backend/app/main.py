@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI):
         ("Relationship Economy",  "app.twin_state.relationship_economy",      "relationship_economy",  False),
         ("Dynamic Personality",   "app.twin_state.dynamic_personality",       "dynamic_personality",   False),
         ("Twin Goals",            "app.twin_state.twin_goals",                "twin_goals",            False),
-        ("Proactive Intelligence","app.twin_state.proactive_intelligence",    "proactive_intelligence",False),
+        # Proactive Intelligence is now part of Unified Proactive Engine
         ("Memory Ranker",         "app.memory.importance.memory_ranker",      "memory_ranker",         False),
         ("Working Memory",        "app.twin_state.working_memory",            "working_memory",        False),
         ("Emotion Bus",           "app.twin_state.emotion_bus",               "emotion_bus",           False),
@@ -105,14 +105,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"   ⚠️ {name} skipped: {e}")
 
-    # Proactive Awareness
+    # ✅ Unified Proactive Engine (Shadow Mode + Memory Echo + Agentic Loop)
     try:
-        from app.features.proactive_awareness import proactive_awareness
-        await proactive_awareness.initialize(ai_gateway=ai_gateway, memory_client=memory_client)
-        await proactive_awareness.start()
-        logger.info("   ✅ Proactive Awareness started")
+        from app.features.unified_proactive_engine import unified_proactive
+        await unified_proactive.initialize(ai_gateway=ai_gateway, memory_client=memory_client)
+        logger.info("   ✅ Unified Proactive Engine initialized")
     except Exception as e:
-        logger.warning(f"   ⚠️ Proactive Awareness skipped: {e}")
+        logger.warning(f"   ⚠️ Unified Proactive Engine skipped: {e}")
 
     # Avatar Engine
     try:

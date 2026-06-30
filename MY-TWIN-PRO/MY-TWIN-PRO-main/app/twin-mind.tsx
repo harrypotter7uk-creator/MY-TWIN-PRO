@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTwinStore } from '../store/useTwinStore';
 import { useEnergyStore } from '../store/useEnergyStore';
 import { useTheme } from '../utils/theme';
-import { router } from 'expo-router';
+import { router, Href } from 'expo-router';
 import { apiGet } from '../lib/httpClient';
 import { AdModal } from '../components/AdModal';
 import {
@@ -16,9 +16,35 @@ import {
 } from 'lucide-react-native';
 
 // ============================================================
+// الأنواع
+// ============================================================
+interface AvatarData {
+  image_url?: string;
+}
+
+interface ConsciousnessStatus {
+  unified_feeling?: string;
+  pending_questions?: string[];
+}
+
+interface ShortcutItem {
+  id: string;
+  icon: any;
+  label_ar: string;
+  label_en: string;
+  route: string;
+  color: string;
+}
+
+// ============================================================
 // مكونات فرعية
 // ============================================================
-const AvatarSection = React.memo(({ avatar, twinName, energyColor, colors }: any) => (
+const AvatarSection = React.memo(({ avatar, twinName, energyColor, colors }: {
+  avatar: AvatarData | null;
+  twinName: string;
+  energyColor: string;
+  colors: any;
+}) => (
   <View style={[st.avatarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
     <View style={[st.avatarGlow, { borderColor: energyColor }]}>
       {avatar?.image_url ? (
@@ -36,18 +62,20 @@ const AvatarSection = React.memo(({ avatar, twinName, energyColor, colors }: any
 // ============================================================
 export default function TwinMindCenter() {
   const insets = useSafeAreaInsets();
+  const safeBottom = Math.max(insets.bottom || 0, 20);
+  const safeTop = insets.top || 0;
+
   const { userId, twinName, lang } = useTwinStore();
   const { getRemainingMessages, dailyMessageLimit } = useEnergyStore();
   const theme = useTheme();
   const isAr = lang === 'ar';
   const isDark = theme.isDark;
 
-  const [avatar, setAvatar] = useState<any>(null);
+  const [avatar, setAvatar] = useState<AvatarData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // بيانات المحركات
   const [unifiedFeeling, setUnifiedFeeling] = useState('');
   const [pendingQuestions, setPendingQuestions] = useState<string[]>([]);
 
@@ -59,26 +87,51 @@ export default function TwinMindCenter() {
     accent: '#7C3AED',
     accentLight: '#7C3AED20',
     border: isDark ? '#2D1B4D' : '#E8E8E3',
-    success: '#10B981', warning: '#F59E0B',
+    success: '#10B981',
+    warning: '#F59E0B',
   };
 
+  const shortcuts: ShortcutItem[] = [
+    { id: 'chat', icon: MessageSquare, label_ar: 'الوعي', label_en: 'Mind', route: '/chat', color: colors.accent },
+    { id: 'museum', icon: Crown, label_ar: 'المتحف', label_en: 'Museum', route: '/museum', color: '#F59E0B' },
+    { id: 'features', icon: Zap, label_ar: 'القدرات', label_en: 'Powers', route: '/features/index', color: colors.success },
+  ];
+
+  // جلب البيانات
   const fetchData = useCallback(async () => {
     if (!userId) return;
     setRefreshing(true);
     try {
-      const [av, st] = await Promise.all([
-        apiGet(`/api/avatar/get?user_id=${userId}`).catch(() => null),
-        apiGet(`/api/consciousness/status?user_id=${userId}&lang=${lang}`).catch(() => null),
+      const [avatarRes, consciousnessRes] = await Promise.all([
+        apiGet(`/api/avatar/get?user_id=${userId}`).catch(() => null) as Promise<AvatarData | null>,
+        apiGet(`/api/consciousness/status?user_id=${userId}&lang=${lang}`).catch(() => null) as Promise<ConsciousnessStatus | null>,
       ]);
 
-      setAvatar(av);
-      if (st) {
-        setUnifiedFeeling(st.unified_feeling || '');
-        setPendingQuestions(st.pending_questions || []);
+      // التعامل الآمن مع بيانات الأفاتار
+      if (avatarRes && typeof avatarRes === 'object') {
+        // قد يكون الرد مباشرة { image_url: ... } أو { data: { image_url: ... } }
+        const data = (avatarRes as any).data;
+        if (data && data.image_url) {
+          setAvatar({ image_url: data.image_url });
+        } else if (avatarRes.image_url) {
+          setAvatar({ image_url: avatarRes.image_url });
+        } else {
+          setAvatar(null);
+        }
+      } else {
+        setAvatar(null);
       }
-    } catch (e) {}
-    setRefreshing(false);
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+
+      if (consciousnessRes) {
+        setUnifiedFeeling(consciousnessRes.unified_feeling || '');
+        setPendingQuestions(consciousnessRes.pending_questions || []);
+      }
+    } catch (e) {
+      // تجاهل الأخطاء
+    } finally {
+      setRefreshing(false);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    }
   }, [userId, lang]);
 
   useEffect(() => {
@@ -90,16 +143,20 @@ export default function TwinMindCenter() {
   const remainingEnergy = getRemainingMessages();
   const energyColor = remainingEnergy > 10 ? '#10B981' : remainingEnergy > 3 ? '#F59E0B' : '#EF4444';
 
+  const handleNavigate = (route: string) => {
+    router.push(route as Href);
+  };
+
   return (
-    <View style={[st.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
+    <View style={[st.root, { paddingTop: safeTop, backgroundColor: colors.bg }]}>
       <ScrollView
-        contentContainerStyle={[st.content, { paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[st.content, { paddingBottom: safeBottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={[colors.accent]} />}
       >
         <Animated.View style={{ opacity: fadeAnim }}>
           <AvatarSection avatar={avatar} twinName={twinName} energyColor={energyColor} colors={colors} />
 
-          {/* 🫀 الشعور الموحد – البطاقة الأساسية */}
+          {/* 🫀 الشعور الموحد */}
           {unifiedFeeling ? (
             <View style={[st.unifiedCard, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
               <Sparkles size={20} stroke={colors.accent} />
@@ -120,27 +177,36 @@ export default function TwinMindCenter() {
             </TouchableOpacity>
           </View>
 
-          {/* 💡 أسئلة التوأم – تظهر بشكل مبسط */}
-          {pendingQuestions.filter(q => !q.startsWith('🎉') && !q.startsWith('📅')).slice(0, 2).map((q, i) => (
-            <TouchableOpacity key={i} style={[st.questionCard, { backgroundColor: colors.accentLight }]} onPress={() => router.push('/chat')}>
-              <MessageSquare size={16} stroke={colors.accent} />
-              <Text style={[st.questionText, { color: colors.accent }]} numberOfLines={2}>{q.replace('🤖 ', '').replace('💡 ', '')}</Text>
-            </TouchableOpacity>
-          ))}
+          {/* 💡 أسئلة التوأم */}
+          {pendingQuestions
+            .filter((q: string) => !q.startsWith('🎉') && !q.startsWith('📅'))
+            .slice(0, 2)
+            .map((q: string, i: number) => (
+              <TouchableOpacity
+                key={i}
+                style={[st.questionCard, { backgroundColor: colors.accentLight }]}
+                onPress={() => router.push('/chat' as Href)}
+              >
+                <MessageSquare size={16} stroke={colors.accent} />
+                <Text style={[st.questionText, { color: colors.accent }]} numberOfLines={2}>
+                  {q.replace('🤖 ', '').replace('💡 ', '')}
+                </Text>
+              </TouchableOpacity>
+            ))}
 
           {/* اختصارات سريعة */}
           <Text style={[st.sectionTitle, { color: colors.text }]}>
             {isAr ? 'قدرات وعيي' : 'My Mind Powers'}
           </Text>
           <View style={st.shortcutsGrid}>
-            {[
-              { id: 'chat', icon: MessageSquare, label_ar: 'الوعي', label_en: 'Mind', route: '/chat', color: colors.accent },
-              { id: 'museum', icon: Crown, label_ar: 'المتحف', label_en: 'Museum', route: '/museum', color: colors.gold },
-              { id: 'features', icon: Zap, label_ar: 'القدرات', label_en: 'Powers', route: '/features/index', color: colors.success },
-            ].map((item) => {
+            {shortcuts.map((item: ShortcutItem) => {
               const Icon = item.icon;
               return (
-                <TouchableOpacity key={item.id} style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(item.route as any)}>
+                <TouchableOpacity
+                  key={item.id}
+                  style={[st.shortcut, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => handleNavigate(item.route)}
+                >
                   <View style={[st.shortcutIconBubble, { backgroundColor: item.color + '15' }]}>
                     <Icon size={28} stroke={item.color} />
                   </View>
@@ -151,10 +217,8 @@ export default function TwinMindCenter() {
               );
             })}
           </View>
-
         </Animated.View>
       </ScrollView>
-
       <AdModal visible={showAdModal} onClose={() => setShowAdModal(false)} />
     </View>
   );

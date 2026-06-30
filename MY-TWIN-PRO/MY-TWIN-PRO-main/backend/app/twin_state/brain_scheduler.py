@@ -162,8 +162,8 @@ class BrainScheduler:
             except Exception as e:
                 logger.debug(f"Hourly/decision {uid}: {e}")
             try:
-                from app.twin_state.proactive_intelligence import proactive_intelligence
-                await proactive_intelligence.check_and_notify(uid)
+                from app.features.unified_proactive_engine import unified_proactive
+                await unified_proactive.pulse(uid)
             except Exception as e:
                 logger.debug(f"Hourly/proactive {uid}: {e}")
 
